@@ -23,7 +23,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 10 — Move client state into the URL, query cache, and editor
 - [x] 11 — Rebuild the interface with Chakra UI as a navigator board
 - [x] 12 — Drag cards between status columns
-- [ ] 13 — Fix unrecognized issue candidates from Needs attention
+- [x] 13 — Fix unrecognized issue candidates from Needs attention
 - [ ] 14 — Rename the package and product to mdkanban
 - [ ] 09 — Verify the complete v1 and prepare the local release candidate
 
