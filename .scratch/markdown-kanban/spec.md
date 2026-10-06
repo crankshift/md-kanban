@@ -6,9 +6,9 @@ Implementation is sequenced in [the implementation workflow](implementation-work
 
 ## Agreed choices
 
-- Develop md-kanban as an open-source project under the MIT license at `https://github.com/crankshift/md-kanban`.
+- Develop mdkanban as an open-source project under the MIT license at `https://github.com/crankshift/md-kanban`.
 - Launch a local Node server and browser interface through a CLI.
-- Accept an optional folder argument, defaulting to the launch directory. The intended published commands include `pnpx md-kanban` and `pnpx md-kanban ./`.
+- Accept an optional folder argument, defaulting to the launch directory. The intended published commands include `pnpx mdkanban` and `pnpx mdkanban ./`.
 - Use React, TypeScript, and Vite for the interface, Node for local file access, and React Hook Form for structured editing. Use Zod where runtime validation is needed, particularly for parsed metadata and write requests.
 - Build the interface with Chakra UI v3 ([ADR 0004](../../docs/adr/0004-chakra-ui-for-board-interface.md)). Keep navigation and view state in the URL with React Router and nuqs, file data and writes in TanStack Query, and drafts in their open editor, without app-owned React Context or a global store ([ADR 0005](../../docs/adr/0005-client-state-without-app-context.md)).
 - Accept repository, tracker, feature, and issue directories as launch targets. Support ticket folders under `docs` as well as `.scratch`, recognizing both `issues/` and `tickets/` containers and directly selected issue folders.

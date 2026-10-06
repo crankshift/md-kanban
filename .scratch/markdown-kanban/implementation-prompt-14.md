@@ -1,6 +1,6 @@
 Implement md-kanban ticket 14 in this repository:
 
-`.scratch/markdown-kanban/issues/14-rename-to-mdboard.md`
+`.scratch/markdown-kanban/issues/14-rename-to-mdkanban.md`
 
 Read `AGENTS.md` and its referenced instructions, `GLOSSARY.md`, relevant ADRs under `docs/adr/` (especially ADR 0006), `.scratch/markdown-kanban/spec.md`, `.scratch/markdown-kanban/implementation-workflow.md`, the assigned ticket, and prior tickets' implementation comments.
 
