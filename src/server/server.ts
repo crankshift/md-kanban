@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverIssues } from './discovery.js';
-import { statusChangeSchema } from './board.js';
+import { statusChangeSchema, issueEditSchema, commentAppendSchema } from './board.js';
 import { patchIssueStatus } from './issues.js';
+import { editIssue } from './edits.js';
+import { appendIssueComment } from './document.js';
 import { createIssueWriter, WriteError } from './writes.js';
 
 const assets = fileURLToPath(new URL('../client/', import.meta.url));
@@ -19,19 +21,19 @@ function json(response: ServerResponse, status: number, value: unknown) {
   response.end(JSON.stringify(value));
 }
 
-async function readJson(request: IncomingMessage): Promise<unknown> {
+async function readJson(request: IncomingMessage, limit = 16384): Promise<unknown> {
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
-    throw new WriteError(415, 'invalid_request', 'Status changes require application/json.');
+    throw new WriteError(415, 'invalid_request', 'Issue changes require application/json.');
   }
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 16384) throw new WriteError(413, 'invalid_request', 'Status change request is too large.');
+    if (size > limit) throw new WriteError(413, 'invalid_request', 'Issue change request is too large.');
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown; }
-  catch { throw new WriteError(400, 'invalid_request', 'Status change must be valid JSON.'); }
+  catch { throw new WriteError(400, 'invalid_request', 'Issue change must be valid JSON.'); }
 }
 
 export async function startServer(folder: string): Promise<{ server: Server; url: string }> {
@@ -54,6 +56,26 @@ export async function startServer(folder: string): Promise<{ server: Server; url
         return;
       }
       const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+      if (['/api/edit', '/api/comment'].includes(pathname) && request.method === 'POST') {
+        try {
+          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
+          const value = await readJson(request, 1024 * 1024);
+          if (pathname === '/api/comment') {
+            const parsed = commentAppendSchema.safeParse(value);
+            if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
+            json(response, 200, await writer.update(parsed.data, (issue) => appendIssueComment(issue.content!, parsed.data.comment)));
+          } else {
+            const parsed = issueEditSchema.safeParse(value);
+            if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
+            const board = await discoverIssues(folder);
+            json(response, 200, await writer.update(parsed.data, (issue) => editIssue(issue, parsed.data.changes, board.issues)));
+          }
+        } catch (error) {
+          const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Cannot save issue. Reload issues and try again.');
+          json(response, failure.status, { error: failure.message, code: failure.code });
+        }
+        return;
+      }
       if (pathname === '/api/status' && request.method === 'POST') {
         try {
           if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
@@ -67,7 +89,7 @@ export async function startServer(folder: string): Promise<{ server: Server; url
         return;
       }
       if (request.method !== 'GET' && request.method !== 'HEAD') {
-        response.writeHead(405, { Allow: pathname === '/api/status' ? 'POST' : 'GET, HEAD' }).end();
+        response.writeHead(405, { Allow: ['/api/status', '/api/edit', '/api/comment'].includes(pathname) ? 'POST' : 'GET, HEAD' }).end();
         return;
       }
       if (pathname === '/api/context') {

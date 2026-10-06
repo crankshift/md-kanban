@@ -14,7 +14,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 02 — Discover tickets and render read-only boards
 - [x] 03 — Read issue details, dependencies, and search results
 - [x] 04 — Persist status changes without overwriting other edits
-- [ ] 05 — Edit issues and append comments
+- [x] 05 — Edit issues and append comments
 - [ ] 06 — Create issues in an existing feature or effort
 - [ ] 07 — Refresh external changes while protecting drafts
 - [ ] 08 — Browse supporting documents and ADRs

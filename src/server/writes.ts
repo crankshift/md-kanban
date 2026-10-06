@@ -98,7 +98,7 @@ export async function createIssueWriter(folder: string) {
           return saved;
         } catch (error) {
           if (error instanceof WriteError) throw error;
-          throw new WriteError(500, 'write_failed', 'Could not save the status. Check folder access and that the issue still exists, then reload issues before retrying.');
+          throw new WriteError(500, 'write_failed', 'Could not save the issue. Check folder access and that the issue still exists, then reload issues before retrying.');
         } finally {
           if (temporary) await unlink(temporary).catch(() => {});
           if (lock) await unlink(lock).catch(() => {});

@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI, boards, safe status changes, issue details, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
+The CLI, boards, safe status changes, issue editing and comments, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -36,7 +36,13 @@ The board changes a card's column after the server confirms persistence. Pending
 
 Saves use temporary files and per-issue locks, shared by md-kanban processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.md-kanban-*.lock` may remain beside the issue. Stop all md-kanban processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
 
-Reload the page to discover external changes outside status-save recovery. Field/body editing, comments, creation, automatic refresh, and supporting-document navigation follow in later slices.
+Use the details panel's **Edit issue** form for title, status, dependencies, and Markdown body, then choose **Save issue**. These fields save together only when requested; the card's Change status control still saves immediately. Dependency options stay within the same feature/effort and location, across its containers, and exclude ambiguous numbers and the issue itself. Unchanged selections preserve original dependency text, including titles and no-dependency notes. **Clear dependencies** can remove unresolved references deliberately. Body preview uses the same safe Markdown renderer as details.
+
+The editable body spans the content after leading metadata and before `## Comments`. Existing comments and any sections following the Comments section remain read-only. **Append comment** saves only the new comment, creates `## Comments` if absent, and preserves prior comments and the body. Use `###` or deeper headings in a new comment; top-level section headings and unclosed code fences are rejected to keep comment boundaries intact. Documents with duplicate Comments sections or unclosed fences remain readable and direct you to edit the Markdown before using the form. Needs attention documents have no structured fields.
+
+Unsaved fields and comment text stay with their issue when you close the panel or navigate, with draft buttons for returning to them. **Reload issues, keep draft** reads disk without discarding drafts. Rejected or unconfirmed saves retain drafts and try to load the latest version. Review the latest Markdown, then use **Recover draft on latest version** to carry only your changed fields onto that version before saving. A changed body replaces the whole editable body, so reconcile overlapping external body edits manually. After a lost comment response, inspect existing comments before recovery and retry to avoid adding the same comment again. **Discard draft** explicitly resets to the loaded version. Drafts live only in this browser tab; leaving the page prompts a warning, and you should save or copy them first. Removed/unsupported issues retain a copyable draft.
+
+Reload issues or the page to discover external changes outside save recovery. Creation, automatic refresh, and supporting-document navigation follow in later slices.
 
 ## Intended registry usage (unreleased)
 

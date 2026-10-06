@@ -1,3 +1,4 @@
+import { leadingMetadata } from './document.js';
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { implementationStatus, wayfindingStatus, wayfindingType, type Issue, type IssueContext } from './board.js';
@@ -7,24 +8,9 @@ export function filenameNumber(path: string): string | null {
 }
 
 export function numberedHeading(content: string): { number: string; title: string } | null {
-  const heading = content.replace(/^\uFEFF/, '').match(/^#\s+(\d+)(?:\s*[:.\-–—]\s*|\s+)(.+?)\s*#*\s*$/m);
+  const first = content.replace(/^\uFEFF/, '').match(/^#[ \t]+([^\r\n]+)$/m)?.[1];
+  const heading = first?.match(/^(\d+)(?:\s*[:.\-–—]\s*|\s+)(.+?)\s*#*\s*$/);
   return heading?.[1] && heading[2] ? { number: heading[1], title: heading[2] } : null;
-}
-
-// Share metadata boundaries between reading and targeted writes, retaining character offsets.
-function* leadingMetadata(content: string) {
-  let foundHeading = false;
-  for (const lineMatch of content.matchAll(/[^\n]*(?:\n|$)/g)) {
-    const raw = lineMatch[0].replace(/\r?\n$/, '');
-    const bom = lineMatch.index === 0 && raw.startsWith('\uFEFF') ? 1 : 0;
-    const line = raw.slice(bom);
-    if (/^#\s/.test(line) && !foundHeading) { foundHeading = true; continue; }
-    if (/^#{1,6}\s/.test(line)) break;
-    if (!line.trim()) continue;
-    const match = line.match(/^(\s*(?:\*\*(Status|Type|Blocked by):\*\*|\*\*(Status|Type|Blocked by)\*\*:|(Status|Type|Blocked by):)\s*)(.*?)\s*$/i);
-    if (!match && !/^\s*(?:\*\*)?(Status|Type|Blocked by)\b/i.test(line) && foundHeading) break;
-    yield { line, match, start: lineMatch.index + bom };
-  }
 }
 
 export function patchIssueStatus(issue: Issue, status: string): string {
@@ -39,6 +25,16 @@ export function patchIssueStatus(issue: Issue, status: string): string {
     }
   }
   throw new Error('Cannot identify status metadata. Reload and check the issue.');
+}
+
+export function patchIssueTitle(issue: Issue, title: string): string {
+  const content = issue.content!;
+  const heading = content.match(/^(\uFEFF?#\s+)((?:\d+(?:\s*[:.\-–—]\s*|\s+))?)(.+?)(\s*#*\s*)(\r?\n|$)/m);
+  if (!heading) throw new Error('Cannot identify the title heading.');
+  const start = heading.index! + heading[1]!.length + heading[2]!.length;
+  const updated = content.slice(0, start) + title + content.slice(start + heading[3]!.length);
+  if (parseIssue(issue, updated).title !== title) throw new Error('This title cannot be represented safely in the existing heading.');
+  return updated;
 }
 
 export function parseIssue(context: IssueContext, content: string): Issue {

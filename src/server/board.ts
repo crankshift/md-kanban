@@ -30,6 +30,19 @@ export const statusChangeSchema = issueWriteSchema.extend({
 }).strict();
 export type StatusChange = z.infer<typeof statusChangeSchema>;
 
+export const titleSchema = z.string().min(1).max(500).refine((title) =>
+  title.trim() === title && !/[\x00-\x1f\x7f]/.test(title), 'Enter a nonempty, single-line title without surrounding whitespace.');
+export const issueChangesSchema = z.object({
+  title: titleSchema.optional(),
+  status: z.enum([...implementationStatuses, ...wayfindingStatuses]).optional(),
+  dependencies: z.array(issueWriteSchema.shape.path).max(500).refine((paths) => new Set(paths).size === paths.length, 'Do not repeat dependencies.').optional(),
+  body: z.string().max(500_000).refine((body) => !body.includes('\0'), 'Remove null characters from the body.').optional(),
+}).strict().refine((changes) => Object.keys(changes).length > 0, 'Choose a field to change.');
+export const issueEditSchema = issueWriteSchema.extend({ changes: issueChangesSchema }).strict();
+export type IssueChanges = z.infer<typeof issueChangesSchema>;
+export const commentSchema = z.string().max(100_000).refine((comment) => !!comment.trim() && !comment.includes('\0'), 'Enter a nonempty comment without null characters.');
+export const commentAppendSchema = issueWriteSchema.extend({ comment: commentSchema }).strict();
+
 export function compareIssues(a: Issue, b: Issue): number {
   return a.feature.localeCompare(b.feature) ||
     (a.number ?? '').localeCompare(b.number ?? '', 'en', { numeric: true }) ||

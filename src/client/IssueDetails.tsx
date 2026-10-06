@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { SafeMarkdown } from './SafeMarkdown';
+import { IssueEditor, type IssueEditorActions } from './IssueEditor';
 import type { Issue } from '../server/board.js';
 import { DependencyList } from './Dependencies';
 import { StatusControl, type StatusControls } from './StatusControl';
 
-export function IssueDetails({ issue, issues, onSelect, onClose, onStatusChange, savingId }: StatusControls & {
+export function IssueDetails({ issue, issues, onSelect, onClose, onStatusChange, savingId, editor }: StatusControls & {
   issue: Issue; issues: Issue[]; onSelect: (id: string) => void; onClose: () => void;
+  editor?: IssueEditorActions | undefined;
 }) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { panel.current?.focus(); panel.current?.scrollTo?.(0, 0); }, [issue.id]);
@@ -25,9 +26,10 @@ export function IssueDetails({ issue, issues, onSelect, onClose, onStatusChange,
     <StatusControl issue={issue} onStatusChange={onStatusChange} savingId={savingId} />
     {issue.diagnostics.length > 0 && <ul role="alert">{issue.diagnostics.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
     <DependencyList issue={issue} issues={issues} onSelect={onSelect} />
+    {editor && <IssueEditor key={`${issue.id}:${issue.revision}`} issue={issue} issues={issues} saving={!!savingId} {...editor} />}
     <section className="markdown" aria-label="Issue Markdown and comments">
       {issue.content === null ? <p>Original text is unavailable because the file could not be read.</p> :
-        <Markdown skipHtml remarkPlugins={[remarkGfm]} components={{ h1: 'h3' }}>{issue.content}</Markdown>}
+        <SafeMarkdown>{issue.content}</SafeMarkdown>}
     </section>
   </aside>;
 }

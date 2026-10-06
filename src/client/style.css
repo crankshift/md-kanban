@@ -14,7 +14,7 @@ p { margin: 8px 0; }
 .workflow-switch { display: flex; gap: 8px; }
 button { font: inherit; cursor: pointer; background: white; color: #202d38; border: 1px solid #c3cec8; border-radius: 6px; padding: 8px 16px; }
 button[aria-pressed="true"] { background: #245d48; color: white; border-color: #245d48; }
-button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #c37a17; outline-offset: 3px; }
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #c37a17; outline-offset: 3px; }
 .board { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 14px; overflow-x: auto; padding: 8px 0 16px; }
 .board.wayfinding { grid-template-columns: repeat(3, minmax(240px, 1fr)); }
 .column { background: #e8eeea; border: 1px solid #dce3df; border-radius: 10px; padding: 14px; min-height: 240px; }
@@ -64,6 +64,14 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 summary .path { display: block; margin-left: 18px; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f6f5; padding: 12px; font-size: .85rem; max-height: 420px; overflow: auto; }
 [role="alert"] { background: #fff3da; padding: 12px; border-radius: 6px; }
+.issue-editor { border-top: 1px solid #e3e8e5; margin-top: 18px; padding-top: 16px; }
+.issue-editor fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 12px; min-width: 0; }
+.issue-editor label { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; }
+.issue-editor input, .issue-editor select, textarea { font: inherit; color: inherit; width: 100%; border: 1px solid #c3cec8; border-radius: 6px; padding: 9px; background: white; }
+textarea { resize: vertical; font-family: ui-monospace, monospace; font-size: .85rem; }
+.draft-actions, .draft-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.draft-list p { width: 100%; }
+button:disabled { cursor: default; opacity: .6; }
 @media (max-width: 650px) { main { padding: 18px; } }
 @media (max-width: 1000px) {
   .board-layout.has-details { grid-template-columns: minmax(0, 1fr); }
