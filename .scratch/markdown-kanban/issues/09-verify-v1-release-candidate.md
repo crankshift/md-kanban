@@ -1,7 +1,7 @@
 # 09: Verify the complete v1 and prepare the local release candidate
 
 Status: ready-for-agent
-Blocked by: 08
+Blocked by: 12, 13
 
 ## Outcome
 
@@ -11,9 +11,10 @@ The implemented v1 meets the agreed specification as a locally installable packa
 
 - Audit the implementation against every acceptance criterion in the specification and resolve gaps within the agreed scope.
 - Verify the packed package from outside the checkout against portable fixtures covering `.scratch`, `docs/tickets`, mixed locations, both workflows, supporting documents, and file conflicts.
-- Exercise the main user journey: launch, find/read a ticket, follow a dependency, move status, edit/comment, create an issue, observe an agent edit, recover a conflicting draft, and read an ADR.
+- Exercise the main user journey: launch, find/read a ticket, follow a dependency, move status by dragging and by keyboard, switch between board and list, jump with the command palette, collapse the sidebar, edit/comment, create an issue, observe an agent edit, recover a conflicting draft, fix an unrecognized issue candidate, read an ADR, and reload a deep link.
 - Check that packaged files contain the required runtime assets and intended public content, with no private paths, credentials, private ticket fixtures, or dependency/build clutter.
 - Update the README and contribution guide to describe the implemented behavior, local use, supported runtime, and actual verification commands. Distinguish local package readiness from registry publication.
+- Rename the changelog's `Unreleased` section to `0.1.0` with the release-candidate date.
 - Run the complete required checks once after final fixes; repeat only as justified by new changes or failures.
 
 ## Acceptance criteria
