@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './helpers.mjs';
+import { connectEvents, pause } from './events.mjs';
 
 const checkout = fileURLToPath(new URL('../', import.meta.url));
 
@@ -53,6 +54,13 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(newIssue.path, '02-created-from-package.md');
   assert.equal(await readFile(join(folder, newIssue.path), 'utf8'), newIssue.content);
   assert.equal((await (await fetch(`${url}/api/issues`)).json()).issues.length, 2);
+  // The installed server observes writes made outside the app and releases the stream at shutdown.
+  await pause(500); // Let notifications for the app's own writes settle first.
+  const stream = await connectEvents(t, url);
+  const echoes = stream.changes();
+  await writeFile(join(folder, '03-external.md'), '# 03: External\n\nStatus: needs-triage\n');
+  await stream.waitForChanges(echoes + 1);
+  assert.equal((await (await fetch(`${url}/api/issues`)).json()).issues.length, 3);
   const html = await (await fetch(url)).text();
   assert.match(html, /<title>md-kanban<\/title>/);
   assert.doesNotMatch(html, /PRIVATE_FOLDER_SENTINEL|main\.tsx|@vite\/client/);
@@ -67,5 +75,6 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal((await fetch(`${url}/api/context`, { method: 'POST' })).status, 405);
   app.child.kill('SIGTERM');
   assert.equal((await app.exit).code, 0);
+  await stream.waitForEnd();
   await assert.rejects(fetch(url));
 });

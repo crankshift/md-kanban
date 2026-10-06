@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { creationTargetSchema, issueCreateSchema, implementationStatuses, wayfindingStatuses, wayfindingType,
@@ -18,6 +18,8 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const [outdated, setOutdated] = useState(false);
+  const epoch = useRef(0);
   const { register, control, watch, setValue, getValues, reset, handleSubmit, formState: { isDirty } } = useForm<Values>({ defaultValues: defaults });
   const values = watch();
   const selected = targets?.find((target) => targetKey(target) === values.target);
@@ -32,6 +34,7 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
       if (!response.ok) throw new Error('Cannot load creation folders. Check the local server; your draft is retained.');
       const latest = z.array(creationTargetSchema).parse(await response.json());
       setTargets(latest);
+      setOutdated(false);
       if (!getValues('target') && latest[0]) {
         setValue('target', targetKey(latest[0]));
         setValue('status', latest[0].workflow === 'implementation' ? 'needs-triage' : 'open');
@@ -41,6 +44,33 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
     finally { setLoading(false); }
   }
   useEffect(() => { if (visible && targets === null && !loading) void loadTargets(); }, [visible]);
+  // After the board changes outside the app, an untouched form follows the latest folders. Once the user has
+  // entered anything, the loaded snapshot stays put (stale creation is rejected) and the change is flagged.
+  useEffect(() => {
+    if (!visible || targets === null || loading) return;
+    const current = epoch.current;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/creation-targets');
+        if (!response.ok) return;
+        const latest = z.array(creationTargetSchema).parse(await response.json());
+        if (cancelled || current !== epoch.current) return;
+        if (!isDirty) {
+          setTargets(latest);
+          const chosen = getValues('target');
+          if (chosen && !latest.some((target) => targetKey(target) === chosen)) {
+            setValue('target', ''); setValue('dependencies', []);
+          }
+          setOutdated(false);
+        } else {
+          const same = latest.find((target) => selected && targetKey(target) === targetKey(selected));
+          setOutdated(!!selected && same?.revision !== selected.revision);
+        }
+      } catch { /* The explicit reload action reports failures. */ }
+    })();
+    return () => { cancelled = true; };
+  }, [issues, visible]);
   useEffect(() => {
     if (!isDirty) return;
     const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -55,6 +85,7 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
     if (!request.success) { setMessage(request.error.issues.map((issue) => issue.message).join('; ')); return; }
     try {
       await onCreate(request.data);
+      epoch.current += 1; setOutdated(false);
       reset(defaults); setTargets(null); setMessage(null); setPreview(false); onClose();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Creation failed. Your draft is retained.'); }
   }
@@ -64,6 +95,7 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
       <p className="muted">Create in an existing folder with a recognized workflow. Drafts stay in this tab when you close this form.</p>
       <button disabled={saving || loading} onClick={onClose}>Close creation</button>
       {message && <p role="alert">{message}</p>}
+      {outdated && <p role="alert">The selected folder changed outside the app. Your draft is kept, but creating from the old snapshot will be rejected. Use Reload containers, keep draft to review the latest issues and dependencies first.</p>}
       {targets?.length === 0 && <p>No existing issue containers have a recognized workflow. Add a compatible numbered Markdown issue in your existing folder, then reload containers.</p>}
       <form noValidate onSubmit={handleSubmit(submit)}>
         <fieldset disabled={saving || loading}>

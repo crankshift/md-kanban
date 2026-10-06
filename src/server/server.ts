@@ -9,6 +9,7 @@ import { statusChangeSchema, issueEditSchema, commentAppendSchema } from './boar
 import { patchIssueStatus } from './issues.js';
 import { editIssue } from './edits.js';
 import { appendIssueComment } from './document.js';
+import { createBoardWatcher } from './watcher.js';
 import { createIssueWriter, WriteError } from './writes.js';
 
 const assets = fileURLToPath(new URL('../client/', import.meta.url));
@@ -37,12 +38,19 @@ async function readJson(request: IncomingMessage, limit = 16384): Promise<unknow
   catch { throw new WriteError(400, 'invalid_request', 'Issue change must be valid JSON.'); }
 }
 
-export async function startServer(folder: string): Promise<{ server: Server; url: string }> {
+export type RunningServer = { server: Server; url: string; close: () => Promise<void> };
+
+export async function startServer(folder: string): Promise<RunningServer> {
   // Fail before announcing a URL if the build is missing.
   await readFile(resolve(assets, 'index.html'));
   const writer = await createIssueWriter(folder);
   const creationRoot = await realpath(folder);
   const sessionToken = randomBytes(32).toString('hex');
+  const watcher = await createBoardWatcher(folder);
+  const streams = new Set<ServerResponse>();
+  const unsubscribe = watcher.subscribe((version) => {
+    for (const stream of streams) stream.write(`event: change\ndata: ${JSON.stringify({ version })}\n\n`);
+  });
   let url = '';
   const server = createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -109,6 +117,14 @@ export async function startServer(folder: string): Promise<{ server: Server; url
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ folder, sessionToken }));
         return;
       }
+      if (pathname === '/api/events') {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive' });
+        if (request.method === 'HEAD') { response.end(); return; }
+        streams.add(response);
+        response.on('close', () => { streams.delete(response); });
+        response.write(`retry: 2000\nevent: ready\ndata: ${JSON.stringify({ version: watcher.version() })}\n\n`);
+        return;
+      }
       if (pathname === '/api/creation-targets') {
         try { json(response, 200, await creationTargets(creationRoot)); }
         catch { json(response, 500, { error: 'Cannot read creation containers. Check folder access and reload.' }); }
@@ -137,15 +153,31 @@ export async function startServer(folder: string): Promise<{ server: Server; url
       response.writeHead(404).end('Not found');
     }
   });
-  await new Promise<void>((resolveListening, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolveListening();
+  // Release the watcher however the server is stopped, including a plain server.close().
+  const release = (): void => { unsubscribe(); watcher.close(); };
+  server.on('close', release);
+  try {
+    await new Promise<void>((resolveListening, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', reject);
+        resolveListening();
+      });
     });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Server did not receive a TCP port');
+    url = `http://127.0.0.1:${address.port}`;
+  } catch (error) { release(); throw error; }
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => closing ??= new Promise<void>((resolveClosed, reject) => {
+    release();
+    for (const stream of streams) stream.end();
+    streams.clear();
+    server.close((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
+      else resolveClosed();
+    });
+    server.closeAllConnections();
   });
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Server did not receive a TCP port');
-  url = `http://127.0.0.1:${address.port}`;
-  return { server, url };
+  return { server, url, close };
 }

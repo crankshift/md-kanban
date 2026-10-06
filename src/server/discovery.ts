@@ -5,7 +5,7 @@ import { compareIssues, type BoardData, type IssueContext } from './board.js';
 import { filenameNumber, numberedHeading, parseIssue } from './issues.js';
 
 const containers = new Set(['issues', 'tickets']);
-const excluded = new Set(['.git', 'node_modules', 'vendor', 'dist', 'build', 'coverage', '.cache', '.next', '.pnpm-store', '.agents', '.codex', 'adr', 'assets']);
+export const excluded = new Set(['.git', 'node_modules', 'vendor', 'dist', 'build', 'coverage', '.cache', '.next', '.pnpm-store', '.agents', '.codex', 'adr', 'assets']);
 const documents = /^(?:spec(?:ification)?|map|readme|agents|claude|glossary|implementation-(?:workflow|prompt.*))\.md$/i;
 const portable = (path: string): string => path.split(sep).join('/');
 

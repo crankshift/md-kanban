@@ -25,15 +25,15 @@ async function main(): Promise<void> {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Cannot use folder "${folder}": ${reason}. Choose an existing, readable directory.`);
   }
-  const { server, url } = await startServer(folder);
+  const { url, close } = await startServer(folder);
   let stopping = false;
   const shutdown = (): void => {
     if (stopping) return;
     stopping = true;
-    server.close((error) => {
-      if (error) { console.error(error.message); process.exitCode = 1; }
+    close().catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
     });
-    server.closeAllConnections();
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);

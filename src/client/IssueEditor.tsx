@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { issueChangesSchema, titleSchema, commentSchema, implementationStatuses, wayfindingStatuses, type Issue, type IssueChanges } from '../server/board.js';
 import { issueDocument } from '../server/document.js';
@@ -49,6 +49,10 @@ function EditableIssue({ issue, issues, draft, onDraft, onWrite, onReload, savin
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const values = watch();
+  // The form stays mounted across external changes so typing is never interrupted. Without a draft there is
+  // nothing to protect, so it follows the file; with a draft, the stale banner offers review and recovery.
+  const defaultsKey = JSON.stringify(defaults);
+  useEffect(() => { if (!draft) reset(editorValues(issue, issues)); }, [issue.revision, defaultsKey]);
   const changed = Object.keys(changesFrom(values, defaults)).length > 0;
   const stale = base.revision !== issue.revision;
   const dependencies = resolveDependencies(base, issues);

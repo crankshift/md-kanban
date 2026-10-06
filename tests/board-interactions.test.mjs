@@ -2,61 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, chmod, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JSDOM } from 'jsdom';
-import { createServer } from 'vite';
-import { act, createElement } from 'react';
-import { discoverIssues } from '../dist/server/discovery.js';
-import { startServer } from '../dist/server/server.js';
-import { fixture } from './fixtures.mjs';
-
-async function renderBoard(t, files, editable = false) {
-  const folder = await fixture(t, files);
-  const data = await discoverIssues(folder);
-  const dom = new JSDOM('<div id="root"></div>');
-  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
-  let sessionToken;
-  if (editable) {
-    const { server, url } = await startServer(folder);
-    t.after(() => new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); }));
-    const nativeFetch = globalThis.fetch;
-    sessionToken = (await (await nativeFetch(`${url}/api/context`)).json()).sessionToken;
-    globals.fetch = (path, options) => nativeFetch(new URL(path, url), options);
-  }
-  const originals = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-  Object.assign(globalThis, globals);
-  const { createRoot } = await import('react-dom/client');
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
-  const { Board } = await vite.ssrLoadModule('/Board.tsx');
-  const root = createRoot(document.getElementById('root'));
-  t.after(async () => {
-    await act(async () => root.unmount());
-    await vite.close();
-    dom.window.close();
-    for (const [key, descriptor] of originals) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-      else delete globalThis[key];
-    }
-  });
-  await act(async () => root.render(createElement(Board, { data, sessionToken })));
-  return {
-    folder, document: dom.window.document,
-    click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => element.click()); },
-    change: async (element, value) => {
-      assert.ok(element, 'input exists');
-      await act(async () => {
-        const prototype = element.tagName === 'SELECT' ? dom.window.HTMLSelectElement.prototype : element.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype;
-        Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
-        element.dispatchEvent(new dom.window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
-      });
-    },
-    settled: async () => {
-      for (let attempt = 0; attempt < 100 && dom.window.document.querySelector('[aria-busy="true"]'); attempt++) {
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
-      }
-      assert.equal(dom.window.document.querySelector('[aria-busy="true"]'), null, 'status operation finishes');
-    },
-  };
-}
+import { act } from 'react';
+import { renderBoard } from './render-board.mjs';
 
 test('explicit form saves preserve comments, preview safely and retain drafts across navigation', async (t) => {
   const original = '# 01: Example\nStatus: ready-for-agent\nBlocked by: None (first issue)\n\n## Acceptance\n- [x] Keep\n\n## Comments\nExisting comment.\n';

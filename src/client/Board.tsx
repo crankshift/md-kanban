@@ -3,13 +3,26 @@ import { boardSchema, issueSchema, compareIssues, implementationStatuses, wayfin
 import { resolveDependencies } from '../server/dependencies.js';
 import { DependencyIndicators } from './Dependencies';
 import { IssueCreator } from './IssueCreator';
-import { IssueDetails } from './IssueDetails';
+import { IssueDetails, MissingIssue } from './IssueDetails';
 import { StatusControl, type StatusControls } from './StatusControl';
 import type { IssueEditorActions, IssueDraft } from './IssueEditor';
 
 type Filters = { query: string; location: string; feature: string };
 const emptyFilters: Filters = { query: '', location: '', feature: '' };
 const featureKey = (issue: BoardData['issues'][number]): string => JSON.stringify([issue.location, issue.feature]);
+
+// Keep unchanged issue objects (and the whole board, when nothing changed) so a refresh only
+// touches what actually changed on disk.
+function mergeBoards(current: BoardData, next: BoardData): BoardData {
+  const known = new Map(current.issues.map((issue) => [issue.id, issue]));
+  const issues = next.issues.map((issue) => {
+    const previous = known.get(issue.id);
+    return previous && JSON.stringify(previous) === JSON.stringify(issue) ? previous : issue;
+  });
+  const same = issues.length === current.issues.length && issues.every((issue, index) => issue === current.issues[index]) &&
+    JSON.stringify(current.warnings) === JSON.stringify(next.warnings);
+  return same ? current : { issues, warnings: next.warnings };
+}
 
 export function BoardView({ data, workflow, filters = emptyFilters, onSelect, onStatusChange, savingId }: StatusControls & {
   data: BoardData; workflow: Workflow; filters?: Filters; onSelect?: (id: string) => void;
@@ -80,6 +93,12 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
   const [result, setResult] = useState<{ error: boolean; message: string } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, IssueDraft>>({});
   const saving = useRef(false);
+  const localWrites = useRef(0);
+  const refreshing = useRef(false);
+  const refreshQueued = useRef(false);
+  const boardRequests = useRef(0);
+  const [live, setLive] = useState<'connecting' | 'live' | 'offline'>('connecting');
+  const [outdated, setOutdated] = useState(false);
   const [workflow, setWorkflow] = useState<Workflow>('implementation');
   const [filters, setFilters] = useState(emptyFilters);
   const [creating, setCreating] = useState(false);
@@ -95,6 +114,18 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
     window.addEventListener('beforeunload', protect);
     return () => window.removeEventListener('beforeunload', protect);
   }, [drafts]);
+  const refresh = useRef<() => Promise<void>>(async () => {});
+  refresh.current = refreshExternal;
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const source = new EventSource('/api/events');
+    // Opening (or reopening) the stream also catches anything changed while disconnected.
+    const sync = () => { setLive('live'); void refresh.current(); };
+    source.addEventListener('ready', sync);
+    source.addEventListener('change', () => { void refresh.current(); });
+    source.addEventListener('error', () => setLive('offline'));
+    return () => source.close();
+  }, []);
   function retainDraft(id: string, draft: IssueDraft | undefined) {
     setDrafts((current) => {
       const updated = { ...current };
@@ -103,17 +134,48 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       return updated;
     });
   }
+  // Responses can arrive out of order; only the most recently requested board may be applied.
+  async function readBoard(): Promise<{ board: BoardData; latest: boolean }> {
+    const request = ++boardRequests.current;
+    const response = await fetch('/api/issues');
+    if (!response.ok) throw new Error('Could not reload issues. Your drafts are retained; check the local server.');
+    const board = boardSchema.parse(await response.json());
+    return { board, latest: request === boardRequests.current };
+  }
   async function reloadIssues() {
     setReloading(true);
     try {
-      const response = await fetch('/api/issues');
-      if (!response.ok) throw new Error('Could not reload issues. Your drafts are retained; check the local server.');
-      setData(boardSchema.parse(await response.json()));
+      const { board, latest } = await readBoard();
+      if (latest) { setData((current) => mergeBoards(current, board)); setOutdated(false); }
     } finally { setReloading(false); }
+  }
+  // Background refresh for changes made outside the app. It never touches drafts, filters, the workflow,
+  // or the selection, and it yields to in-flight saves so a late response cannot show an unsaved state.
+  async function refreshExternal() {
+    if (saving.current || refreshing.current) { refreshQueued.current = true; return; }
+    refreshing.current = true;
+    try {
+      do {
+        refreshQueued.current = false;
+        const writes = localWrites.current;
+        try {
+          const { board, latest } = await readBoard();
+          if (!latest) continue; // A newer request owns the result.
+          if (saving.current || writes !== localWrites.current) { refreshQueued.current = true; continue; }
+          setData((current) => mergeBoards(current, board));
+          setOutdated(false);
+        } catch { setOutdated(true); }
+      } while (refreshQueued.current && !saving.current);
+    } finally { refreshing.current = false; }
+  }
+  function finishSave() {
+    saving.current = false;
+    setSavingId(null);
+    if (refreshQueued.current) void refresh.current();
   }
   async function createNewIssue(request: IssueCreate) {
     if (!sessionToken || saving.current) throw new Error('Wait for the current save or reload the local session. Draft retained.');
-    saving.current = true; setSavingId('create'); setResult(null);
+    saving.current = true; localWrites.current += 1; setSavingId('create'); setResult(null);
     try {
       const response = await fetch('/api/create', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken },
@@ -132,13 +194,14 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       catch { message += ' Reload failed; displayed issues may be outdated.'; }
       message += ' Draft retained. Inspect the board for a saved issue before reloading containers and retrying.';
       setResult({ error: true, message }); throw new Error(message);
-    } finally { saving.current = false; setSavingId(null); }
+    } finally { finishSave(); }
   }
   async function persistIssue(base: Issue, endpoint: 'status' | 'edit' | 'comment', fields: Parameters<IssueEditorActions['onWrite']>[2] | { status: string }) {
     const statusMove = endpoint === 'status';
     const rejection = statusMove ? 'Status was not saved.' : 'Save rejected.';
     if (!sessionToken || !base.revision || saving.current) throw new Error('Wait for the current save or reload the local session. Your draft is retained.');
     saving.current = true;
+    localWrites.current += 1;
     setSavingId(base.id);
     setResult(null);
     try {
@@ -165,10 +228,7 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       catch { message += statusMove ? ' Could not refresh issues; displayed statuses may be outdated. Reload the page.' : ' Reload failed; displayed data may be outdated. Your draft is retained. Reconnect and use Reload issues, keep draft.'; }
       setResult({ error: true, message });
       throw new Error(message);
-    } finally {
-      saving.current = false;
-      setSavingId(null);
-    }
+    } finally { finishSave(); }
   }
   const writeIssue: IssueEditorActions['onWrite'] = persistIssue;
   async function reloadForUser() {
@@ -219,15 +279,28 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
     </>}
     {sessionToken && <p className="muted">Drag a card to another column or use Change status. Status changes save immediately; dependencies are advisory.</p>}
     {result && <p role={result.error ? 'alert' : 'status'}>{result.message}</p>}
+    {live === 'live' && <p className="muted live-status">Live: changes made outside the app refresh automatically. Unsaved drafts are kept.</p>}
+    {(outdated || live === 'offline') && <p role="alert">{outdated
+      ? 'Could not read the latest issues from disk; the board may be outdated. Your drafts are retained.'
+      : 'Live updates are disconnected, so changes made outside the app may not appear. Reconnecting automatically; use Reload issues to read the latest files now.'}
+      <button disabled={!!savingId || reloading} onClick={() => { void reloadForUser().catch(() => {}); }}>Reload issues</button></p>}
     {Object.keys(drafts).length > 0 && <div className="draft-list"><p>Drafts retained in this tab. Save or copy them before leaving the page.</p>
       <button disabled={!!savingId || reloading} onClick={() => { void reloadForUser().catch(() => {}); }}>Reload issues, keep drafts</button>
-      {Object.entries(drafts).map(([id, draft]) => data.issues.some((issue) => issue.id === id) ?
-        <button key={id} onClick={() => selectIssue(id)}>Draft #{draft.base.number}: {draft.base.title}</button> :
-        <details key={id}><summary>Unavailable issue draft: {id}</summary><pre>{JSON.stringify(draft.values, null, 2)}</pre></details>)}
+      {Object.entries(drafts).map(([id, draft]) => {
+        const issue = data.issues.find((candidate) => candidate.id === id);
+        if (!issue) return <details key={id}><summary>Unavailable issue draft: {id}</summary>
+          <p role="alert">The file was removed, renamed, or moved outside the app. Copy the draft below before discarding it.</p>
+          <pre>{JSON.stringify(draft.values, null, 2)}</pre></details>;
+        const conflict = issue.diagnostics.length > 0 ? 'The file now needs attention.' : issue.revision !== draft.base.revision ? 'The file changed outside the app.' : null;
+        return <span key={id}><button onClick={() => selectIssue(id)}>Draft #{draft.base.number}: {draft.base.title}</button>
+          {conflict && <span role="alert" className="conflict"> {conflict} Open the draft to review or recover it; saving the old version will be rejected.</span>}</span>;
+      })}
     </div>}
     {savingId && <p role="status">Saving issue…</p>}
     <div className={selected ? 'board-layout has-details' : 'board-layout'} aria-busy={!!savingId || reloading}>
       <div className="board-content"><BoardView data={data} workflow={workflow} filters={filters} onSelect={selectIssue} onStatusChange={onStatusChange} savingId={savingId ?? (reloading ? 'reload' : null)} /></div>
+      {!selected && selectedId && <MissingIssue id={selectedId} draft={drafts[selectedId]} onClose={closeDetails}
+        onDiscard={() => { retainDraft(selectedId, undefined); closeDetails(); }} />}
       {selected && <IssueDetails issue={selected} issues={data.issues} onSelect={selectIssue} onClose={closeDetails} onStatusChange={onStatusChange} savingId={savingId ?? (reloading ? 'reload' : null)}
         editor={sessionToken ? { draft: drafts[selected.id], onDraft: (draft) => retainDraft(selected.id, draft), onWrite: writeIssue, onReload: reloadForUser } : undefined} />}
     </div>

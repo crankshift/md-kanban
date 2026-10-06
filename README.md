@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI, boards, safe status changes, issue creation, editing and comments, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
+The CLI, boards, safe status changes, issue creation, editing and comments, dependency navigation, search, and live refresh of external changes are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -46,7 +46,11 @@ Choose **New issue** to select an existing feature/effort folder and its recogni
 
 Creation never replaces an existing file. Occupied numbers, including unreadable files, directories, and symbolic links, are reserved across the discovered feature/effort scope. A changed container rejects the loaded creation draft. **Reload containers, keep draft** explicitly loads the latest snapshot for review and retry. Closing creation or navigating to existing issues retains its draft and existing editor drafts. After a lost creation response, inspect the refreshed board before retrying: the file may already exist. A retry using the old snapshot is rejected. **Discard creation draft** clears entered content explicitly; drafts live only in this tab.
 
-Reload issues or the page to discover external changes outside save recovery. Automatic refresh and supporting-document navigation follow in later slices.
+The board follows the files while the page stays connected: an agent or editor writing, creating, renaming, deleting, or atomically replacing an issue file updates the cards, details, dependency badges, and Needs attention list without a restart or page reload. A **Live** line confirms the connection. Only changes to discovered issues cause a refresh; editing a specification, map, ADR, or other supporting document does not. Search text, location/feature filters, the workflow view, and the open issue stay as they are, and a change to one issue never touches another issue's draft.
+
+Unsaved work is protected. If a file with a draft changes, the draft stays in its form with a notice that the file changed outside the app; saving it is still rejected as stale, so the external version is never overwritten. Review the latest Markdown, then use **Recover draft on latest version** as described above. If the file is removed or renamed, its draft stays in the details panel and the draft list as copyable text until you discard it; a renamed file appears as a new card, so reapply the changes there. A file that becomes malformed moves to **Needs attention** with its diagnostic and keeps the draft recoverable; if it is repaired, the draft returns to the form. An open issue without a draft simply follows its file. A creation form you have not touched follows new or changed folders; once you enter anything, the form keeps the loaded snapshot and warns that the folder changed, and the server rejects creating from it until you use **Reload containers, keep draft**. Your own saves do not produce false results: refreshes wait for a save in progress, and the notification an app write causes matches what was just saved.
+
+If the connection drops, the board says live updates are disconnected and reconnects automatically (use **Reload issues** to read the files immediately). If a refresh cannot read the folder, the last data stays on screen with an outdated warning. Press Ctrl+C to stop; the server closes its file watcher and every open connection. A browser allows only a handful of simultaneous connections per local address, and each open board tab holds one, so close extra tabs if the page stops responding. Supporting-document navigation follows in a later slice.
 
 ## Intended registry usage (unreleased)
 

@@ -39,7 +39,7 @@ function App() {
       </header>
       {error ? <p role="alert">Could not load the board. Check folder access and that the local server is running, then reload.</p> :
         data ? <Board data={data} sessionToken={sessionToken} /> : <p role="status">Discovering issues…</p>}
-      <p className="muted">Keep the terminal process running while using this app. Reload to read external changes. Press Ctrl+C in the terminal to stop it.</p>
+      <p className="muted">Keep the terminal process running while using this app. Press Ctrl+C in the terminal to stop it.</p>
     </main>
   );
 }
