@@ -14,6 +14,6 @@ Run the meaningful checks appropriate to this change, including type checking an
 
 When all required work is complete, check off this ticket in the implementation workflow and commit its focused changes on `feat/md-kanban-v1`. Do not invent a ticket completion status. Do not push remote changes, merge, deploy, or publish a package.
 
-Then read the next unchecked ticket and copy its saved implementation prompt to the clipboard without asking the user. Normally this is `.scratch/markdown-kanban/implementation-prompt-09.md`. On macOS use `pbcopy` with the prompt file as stdin and verify the clipboard when possible. If clipboard access is unavailable, report the limitation and provide the saved prompt's path.
+Then read the next unchecked ticket and copy its saved implementation prompt to the clipboard without asking the user. Normally this is `.scratch/markdown-kanban/implementation-prompt-14.md`. On macOS use `pbcopy` with the prompt file as stdin and verify the clipboard when possible. If clipboard access is unavailable, report the limitation and provide the saved prompt's path.
 
 Finish with a concise report of the implementation, verification, and clipboard handoff (or final sequence completion). If a genuine hard blocker prevents completion, document it clearly, do not claim the ticket is complete, and do not advance to a supposedly ready next ticket.
