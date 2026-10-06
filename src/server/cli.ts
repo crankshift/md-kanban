@@ -12,10 +12,10 @@ async function main(): Promise<void> {
     allowPositionals: true,
   });
   if (values.help) {
-    console.log('Usage: md-kanban [folder] [--no-open]\nDefaults to the caller’s current directory. Press Ctrl+C to stop.');
+    console.log('Usage: mdkanban [folder] [--no-open]\nDefaults to the caller’s current directory. Press Ctrl+C to stop.');
     return;
   }
-  if (positionals.length > 1) throw new Error('Expected at most one folder. Usage: md-kanban [folder] [--no-open]');
+  if (positionals.length > 1) throw new Error('Expected at most one folder. Usage: mdkanban [folder] [--no-open]');
   const folder = resolve(process.cwd(), positionals[0] ?? '.');
   try {
     if (!(await stat(folder)).isDirectory()) throw new Error('not a directory');
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-  console.log(`md-kanban: ${url}\nSelected folder: ${folder}\nPress Ctrl+C to stop.`);
+  console.log(`mdkanban: ${url}\nSelected folder: ${folder}\nPress Ctrl+C to stop.`);
   if (!values['no-open']) {
     try {
       const opener = await open(url);
@@ -54,6 +54,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`md-kanban: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`mdkanban: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 });

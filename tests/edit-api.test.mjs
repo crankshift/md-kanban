@@ -12,7 +12,7 @@ async function appFor(t, files) {
   const { sessionToken } = await (await fetch(`${url}/api/context`)).json();
   const load = async () => (await (await fetch(`${url}/api/issues`)).json()).issues;
   const send = (endpoint, issue, fields, headers = {}) => fetch(`${url}/api/${endpoint}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken, ...headers },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken, ...headers },
     body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, ...fields }),
   });
   return { folder, load, send };
@@ -99,7 +99,7 @@ test('invalid editor requests alter no file and comments can create a heading an
   for (const comment of ['', '  ', '## Another section', '```\nUnclosed']) {
     assert.ok([400, 422].includes((await app.send('comment', issue, { comment })).status));
   }
-  assert.equal((await app.send('edit', issue, { changes: { title: 'Changed' } }, { 'X-Md-Kanban-Session': '' })).status, 403);
+  assert.equal((await app.send('edit', issue, { changes: { title: 'Changed' } }, { 'X-Mdkanban-Session': '' })).status, 403);
   assert.equal((await app.send('comment', issue, { comment: 'No' }, { Origin: 'https://example.org' })).status, 403);
   let response = await app.send('comment', issue, { comment: 'First.' });
   assert.equal(response.status, 200);

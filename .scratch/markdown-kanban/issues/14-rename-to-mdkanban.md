@@ -33,3 +33,12 @@ The app is published under the name `mdkanban`, so `npx mdkanban` and `pnpx mdka
 - Type checking, the production build, and the tests pass.
 
 ## Comments
+
+### Implementation result — 2026-10-06
+
+- Renamed the package and bin to `mdkanban` and added `author`, `repository`, `homepage`, `bugs`, and the thirteen `keywords` to `package.json`. Repository URLs keep the `md-kanban` GitHub name.
+- Renamed the CLI usage and log lines, the page `<title>`, and the header `<h1>`. Hidden files are now `.mdkanban-*` (save temporaries, per-issue locks, creation lock), including error messages and the watcher and creation filters. The session header is `X-Mdkanban-Session` on server and client. No compatibility handling for the old names, as the ticket specifies.
+- Updated tests, README, CONTRIBUTING, and the Unreleased CHANGELOG. The spec's CLI line already read `pnpx mdkanban` / `pnpx mdkanban ./`, so it needed no change. Earlier tickets and saved prompts are untouched.
+- Verification: `pnpm typecheck`, `pnpm build`, and `pnpm test` (122 tests) passed. `pnpm pack` produces `mdkanban-0.1.0.tgz` whose `package.json` has bin `mdkanban`; an offline install into a scratch project ran `mdkanban --help` correctly (the package test also launches the installed bin). A grep finds `md-kanban` only in the GitHub URLs in `package.json` and CONTRIBUTING.
+- Housekeeping: the ticket 13 checkbox in the implementation workflow was left unchecked by its commit; it is checked here since that ticket's work and comments are complete.
+- Limitations: `pnpm-lock.yaml` has no package-name reference, so it is unchanged. Registry availability of `mdkanban` is not checked here; ticket 15 must confirm it. Not published.

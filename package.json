@@ -1,11 +1,35 @@
 {
-  "name": "md-kanban",
+  "name": "mdkanban",
   "version": "0.1.0",
   "description": "A local browser app for Markdown issues",
+  "author": "crankshift",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crankshift/md-kanban.git"
+  },
+  "homepage": "https://github.com/crankshift/md-kanban#readme",
+  "bugs": {
+    "url": "https://github.com/crankshift/md-kanban/issues"
+  },
+  "keywords": [
+    "markdown",
+    "kanban",
+    "issues",
+    "agents",
+    "cli",
+    "mattpocock",
+    "agent-skills",
+    "claude-code",
+    "to-tickets",
+    "to-spec",
+    "wayfinder",
+    "triage",
+    "tickets"
+  ],
   "type": "module",
   "license": "MIT",
   "bin": {
-    "md-kanban": "dist/server/cli.js"
+    "mdkanban": "dist/server/cli.js"
   },
   "files": [
     "dist",

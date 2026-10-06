@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed the package, command, page title, and interface to `mdkanban`; the registry commands will be `npx mdkanban` and `pnpx mdkanban`. The app now writes hidden temporary and lock files as `.mdkanban-*` and sends the `X-Mdkanban-Session` header. The GitHub repository stays `md-kanban`.
 - Rebuilt the interface as a Chakra navigator with an orange accent, system-aware light/dark modes, compact cards, and grouped Board/List views restored from the URL.
 - Issue creation, reading, and editing now open in centered dialogs over the full-width board. Followed links retain Back history and breadcrumbs; a command palette searches issues and supporting documents.
 - Added searchable comboboxes, fixed-height Write/Preview tabs, a collapsible sidebar/icon rail, and toast feedback for saves and rejected writes. Needs attention remains read-only until its repair ticket.

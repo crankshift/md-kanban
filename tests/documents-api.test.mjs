@@ -116,7 +116,7 @@ test('missing, non-Markdown, malformed and out-of-scope links are unavailable an
 });
 
 test('symbolic links are never followed, including links that escape the selected root', async (t) => {
-  const outside = await mkdtemp(join(tmpdir(), 'md-kanban-outside-'));
+  const outside = await mkdtemp(join(tmpdir(), 'mdkanban-outside-'));
   t.after(() => rm(outside, { recursive: true, force: true }));
   await writeFile(join(outside, 'secret.md'), '# Private\nDo not read.\n');
   const app = await serve(t);
@@ -140,7 +140,7 @@ test('symbolic links are never followed, including links that escape the selecte
 
 test('a root selected through a symlink stays the boundary', async (t) => {
   const app = await serve(t);
-  const alias = join(app.root, '..', `md-kanban-alias-${process.pid}`);
+  const alias = join(app.root, '..', `mdkanban-alias-${process.pid}`);
   await symlink(app.root, alias);
   t.after(() => rm(alias, { force: true }));
   const started = await startServer(alias);

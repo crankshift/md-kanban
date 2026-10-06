@@ -1,4 +1,4 @@
-# md-kanban
+# mdkanban
 
 A Kanban board for Markdown tickets created with [Matt Pocock's agent skills](https://github.com/mattpocock/skills).
 
@@ -34,7 +34,7 @@ Drag a card by its grip handle to another status column with a mouse, or hold th
 
 The board shows status moves, field saves, comments, and creation immediately while the server writes. Pending controls are disabled. A new issue displays **Creating…** without a number until the server confirms it. Failures roll the change back and report an error; stale writes also reload the latest issues for review. A lost response can follow a successful write, so inspect the refreshed Markdown before retrying, especially comments and creation. The local write API checks the app session, origin, selected-folder boundary, and expected file or container revision.
 
-Saves use temporary files and per-issue locks, shared by md-kanban processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.md-kanban-*.lock` may remain beside the issue. Stop all md-kanban processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
+Saves use temporary files and per-issue locks, shared by mdkanban processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.mdkanban-*.lock` may remain beside the issue. Stop all mdkanban processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
 
 Use the detail dialog's **Edit issue** form for title, status, dependencies, and Markdown body, then choose **Save issue**. These fields save together only when requested; the card's Change status control still saves immediately. Dependency options stay within the same feature/effort and location, across its containers, and exclude ambiguous numbers and the issue itself. Unchanged selections preserve original dependency text, including titles and no-dependency notes. **Clear dependencies** can remove unresolved references deliberately. The **Write** and **Preview** tabs share a fixed-height editor and use the same safe Markdown renderer as details.
 
@@ -74,21 +74,21 @@ Launching an issue folder directly exposes only documents inside that folder, so
 
 ## Intended registry usage (unreleased)
 
-**Under development:** the app and CLI are not released yet. The commands below describe how you will use md-kanban once it is published.
+**Under development:** the app and CLI are not released yet. The commands below describe how you will use mdkanban once it is published.
 
 From your project or ticket folder, run either command:
 
 ```sh
-npx md-kanban
-pnpx md-kanban
+npx mdkanban
+pnpx mdkanban
 ```
 
 The board will open in your browser using the current folder. To open a different folder, pass its path:
 
 ```sh
-npx md-kanban ./docs/tickets
-pnpx md-kanban ./docs/tickets
-pnpx md-kanban ../another-project/.scratch
+npx mdkanban ./docs/tickets
+pnpx mdkanban ./docs/tickets
+pnpx mdkanban ../another-project/.scratch
 ```
 
 Launching without a path is the same as passing `./`. Keep the terminal command running while you use the board.

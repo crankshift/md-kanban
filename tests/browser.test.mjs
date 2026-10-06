@@ -8,7 +8,7 @@ import { launch } from './helpers.mjs';
 const cli = fileURLToPath(new URL('../dist/server/cli.js', import.meta.url));
 
 test('browser-opening failure provides a manual URL and keeps the server available', { skip: process.platform !== 'darwin' }, async (t) => {
-  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'md-kanban-opener-')));
+  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'mdkanban-opener-')));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   await writeFile(join(cwd, 'open'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   const app = await launch(t, cli, cwd, [], { ...process.env, PATH: cwd });

@@ -70,7 +70,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
       const pathname = decodeURIComponent(requested.pathname);
       if (pathname === '/api/create' && request.method === 'POST') {
         try {
-          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before creating.');
+          if (request.headers['x-mdkanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before creating.');
           json(response, 201, await createIssue(creationRoot, await readJson(request, 1024 * 1024) as Parameters<typeof createIssue>[1]));
         } catch (error) {
           const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Could not create issue.');
@@ -80,7 +80,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
       }
       if (['/api/edit', '/api/comment'].includes(pathname) && request.method === 'POST') {
         try {
-          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
+          if (request.headers['x-mdkanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
           const value = await readJson(request, 1024 * 1024);
           if (pathname === '/api/comment') {
             const parsed = commentAppendSchema.safeParse(value);
@@ -100,7 +100,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
       }
       if (pathname === '/api/repair' && request.method === 'POST') {
         try {
-          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
+          if (request.headers['x-mdkanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
           const parsed = repairSchema.safeParse(await readJson(request, 1024 * 1024));
           if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
           json(response, 200, await writer.update(parsed.data, (issue) => repairMarkdown(issue.content!, parsed.data), true));
@@ -112,7 +112,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
       }
       if (pathname === '/api/status' && request.method === 'POST') {
         try {
-          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
+          if (request.headers['x-mdkanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
           const parsed = statusChangeSchema.safeParse(await readJson(request));
           if (!parsed.success) throw new WriteError(400, 'invalid_request', 'Supply a root-relative issue path, expected revision, and supported status.');
           json(response, 200, await writer.update(parsed.data, (issue) => patchIssueStatus(issue, parsed.data.status)));

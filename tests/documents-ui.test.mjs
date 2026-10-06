@@ -28,7 +28,7 @@ const folderFiles = async (root, directory = '') => {
 const text = (element) => element?.textContent ?? '';
 
 async function setup(t) {
-  const outside = await mkdtemp(join(tmpdir(), 'md-kanban-ui-outside-'));
+  const outside = await mkdtemp(join(tmpdir(), 'mdkanban-ui-outside-'));
   t.after(() => rm(outside, { recursive: true, force: true }));
   await writeFile(join(outside, 'secret.md'), '# Private\n');
   const ui = await renderBoard(t, files, true);

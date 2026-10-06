@@ -363,7 +363,7 @@ export function Board({
       if (!sessionToken) throw new Error('Reload the local session before saving.');
       const response = await fetch(`/api/${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken },
+        headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken },
         body: JSON.stringify(
           base ? { path: base.path, expectedRevision: base.revision, ...fields } : fields,
         ),

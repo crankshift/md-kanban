@@ -103,7 +103,7 @@ test('app writes notify once with a refresh that matches the saved result', asyn
   const { sessionToken } = await (await fetch(`${url}/api/context`)).json();
   const issue = issueAt(await board(), '.scratch/alpha/issues/01-start.md');
   const response = await fetch(`${url}/api/status`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken },
     body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, status: 'needs-info' }),
   });
   const saved = await response.json();
@@ -113,7 +113,7 @@ test('app writes notify once with a refresh that matches the saved result', asyn
   assert.deepEqual(issueAt(await board(), issue.path), saved);
   assert.match(await readFile(join(folder, issue.path), 'utf8'), /Status: needs-info/);
   const stale = await fetch(`${url}/api/status`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken },
     body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, status: 'wontfix' }),
   });
   assert.equal(stale.status, 409, 'writes based on the pre-refresh revision stay rejected');

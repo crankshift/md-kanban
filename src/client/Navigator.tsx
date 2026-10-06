@@ -222,7 +222,7 @@ export function Navigator({
           nav('Expand sidebar', <LuPanelLeftOpen />, false, onCollapse)
         ) : (
           <HStack justify="space-between" px="2">
-            <Heading size="md">md-kanban</Heading>
+            <Heading size="md">mdkanban</Heading>
             <Tooltip content="Collapse sidebar [">
               <IconButton
                 aria-label="Collapse sidebar"

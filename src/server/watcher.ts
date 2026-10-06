@@ -21,7 +21,7 @@ async function markdownVersions(folder: string): Promise<unknown[]> {
   const versions: unknown[] = [];
   async function walk(directory: string) {
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.isSymbolicLink() || entry.name.startsWith('.md-kanban-') || (excluded.has(entry.name) && entry.name !== 'adr')) continue;
+      if (entry.isSymbolicLink() || entry.name.startsWith('.mdkanban-') || (excluded.has(entry.name) && entry.name !== 'adr')) continue;
       const path = join(directory, entry.name);
       try {
         if (entry.isDirectory()) await walk(path);
@@ -93,7 +93,7 @@ export async function createBoardWatcher(folder: string, options: BoardWatcherOp
   };
   // Lock and temporary files from our own writes never affect discovery.
   const relevant = (filename: string | null): boolean => filename === null ||
-    (!basename(filename).startsWith('.md-kanban-') && !filename.split(sep).some((part) => (excluded.has(part) && part !== 'adr')));
+    (!basename(filename).startsWith('.mdkanban-') && !filename.split(sep).some((part) => (excluded.has(part) && part !== 'adr')));
 
   if (native) {
     try {

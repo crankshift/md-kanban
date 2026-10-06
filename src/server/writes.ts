@@ -57,7 +57,7 @@ export async function createIssueWriter(folder: string) {
           const context = board.issues.find((issue) => issue.path === request.path);
           if (!context) throw new WriteError(404, 'issue_unavailable', 'Issue is unavailable in the selected folder. Reload issues and check its path.');
           await checkPath(path);
-          const lockPath = join(dirname(path), `.md-kanban-${createHash('sha256').update(basename(path)).digest('hex')}.lock`);
+          const lockPath = join(dirname(path), `.mdkanban-${createHash('sha256').update(basename(path)).digest('hex')}.lock`);
           try {
             const handle = await open(lockPath, 'wx', 0o600);
             lock = lockPath;
@@ -65,7 +65,7 @@ export async function createIssueWriter(folder: string) {
             await checkPath(lockPath);
           } catch (error) {
             if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
-              throw new WriteError(409, 'write_in_progress', 'Another app is saving this issue, or a save was interrupted. Wait and reload issues. If it persists, stop all md-kanban processes and remove the .md-kanban-*.lock file beside this issue before restarting.');
+              throw new WriteError(409, 'write_in_progress', 'Another app is saving this issue, or a save was interrupted. Wait and reload issues. If it persists, stop all mdkanban processes and remove the .mdkanban-*.lock file beside this issue before restarting.');
             }
             throw error;
           }
@@ -79,7 +79,7 @@ export async function createIssueWriter(folder: string) {
           if (!allowDiagnostics && !saved.workflow) throw new WriteError(422, 'invalid_change', 'The change would produce invalid issue metadata.');
           if (content === issue.content) return saved;
           await checkPath(dirname(path));
-          temporary = join(dirname(path), `.md-kanban-${randomUUID()}.tmp`);
+          temporary = join(dirname(path), `.mdkanban-${randomUUID()}.tmp`);
           const handle = await open(temporary, 'wx', 0o600);
           try {
             await checkPath(temporary);

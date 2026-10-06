@@ -8,7 +8,7 @@ import { launch } from './helpers.mjs';
 const cli = fileURLToPath(new URL('../dist/server/cli.js', import.meta.url));
 
 test('CLI resolves omitted, dot, relative, absolute, and option-like folders from caller cwd', { timeout: 10000 }, async (t) => {
-  const temporary = await mkdtemp(join(tmpdir(), 'md-kanban-args-'));
+  const temporary = await mkdtemp(join(tmpdir(), 'mdkanban-args-'));
   const cwd = await realpath(temporary);
   t.after(() => rm(cwd, { recursive: true, force: true }));
   await mkdir(join(cwd, 'issues with spaces'));
@@ -29,21 +29,21 @@ test('CLI resolves omitted, dot, relative, absolute, and option-like folders fro
 });
 
 test('CLI rejects nonexistent paths, files, excess arguments, and unknown flags before listening', { timeout: 10000 }, async (t) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'md-kanban-invalid-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'mdkanban-invalid-'));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   await writeFile(join(cwd, 'file.md'), 'Public test fixture');
   for (const args of [['missing'], ['file.md'], ['one', 'two'], ['--unknown']]) {
     const app = await launch(t, cli, cwd, args);
     const result = await app.exit;
     assert.equal(result.code, 1);
-    assert.match(result.stderr, /md-kanban:/);
+    assert.match(result.stderr, /mdkanban:/);
     assert.doesNotMatch(result.stdout, /http:/);
   }
 });
 
 
 test('CLI reports inaccessible folders before startup', { skip: process.platform === 'win32' || process.getuid?.() === 0, timeout: 10000 }, async (t) => {
-  const cwd = await mkdtemp(join(tmpdir(), 'md-kanban-permissions-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'mdkanban-permissions-'));
   const folder = join(cwd, 'restricted');
   await mkdir(folder);
   t.after(async () => {
