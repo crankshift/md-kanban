@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { boardSchema, issueSchema, compareIssues, implementationStatuses, wayfindingStatuses, type BoardData, type Workflow, type Issue, type IssueCreate } from '../server/board.js';
 import { resolveDependencies } from '../server/dependencies.js';
 import { DependencyIndicators } from './Dependencies';
+import { DocumentList, DocumentPanel, resolveLink, useSupportingDocuments, type DocumentTarget } from './Documents';
 import { IssueCreator } from './IssueCreator';
 import { IssueDetails, MissingIssue } from './IssueDetails';
 import { StatusControl, type StatusControls } from './StatusControl';
@@ -104,6 +105,11 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  // The side panel shows one thing at a time. Following a link remembers where it came from so Back returns there.
+  type Origin = { issueId: string } | { document: DocumentTarget; origin: Origin | null };
+  const [openDocument, setOpenDocument] = useState<{ target: DocumentTarget; origin: Origin | null } | null>(null);
+  const [linkNotice, setLinkNotice] = useState<string | null>(null);
+  const supporting = useSupportingDocuments(data);
   const selected = data.issues.find((issue) => issue.id === selectedId);
   const locations = [...new Set(data.issues.map((issue) => issue.location))].sort();
   const features = [...new Map(data.issues.filter((issue) => !filters.location || issue.location === filters.location)
@@ -243,10 +249,27 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
     const issue = data.issues.find((candidate) => candidate.id === id);
     if (!issue) return;
     if (selectedId === null) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setCreating(false); setSelectedId(id);
+    setCreating(false); setSelectedId(id); setOpenDocument(null); setLinkNotice(null);
     if (issue.workflow) setWorkflow(issue.workflow);
   }
+  function showDocument(target: DocumentTarget, origin: Origin | null) {
+    if (selectedId === null && !openDocument) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setCreating(false); setSelectedId(null); setLinkNotice(null);
+    setOpenDocument({ target, origin });
+  }
+  async function followLink(from: string, href: string, origin: Origin) {
+    const link = await resolveLink(from, href);
+    if (link.status === 'unavailable') { setLinkNotice(`Unavailable link “${href}”: ${link.reason}`); return; }
+    if (link.issue && data.issues.some((issue) => issue.id === link.path)) { setOpenDocument(null); setLinkNotice(null); selectIssue(link.path); return; }
+    showDocument({ path: link.path, fragment: link.fragment }, origin);
+  }
+  function goBack(origin: Origin) {
+    setLinkNotice(null);
+    if ('issueId' in origin) { setOpenDocument(null); selectIssue(origin.issueId); }
+    else setOpenDocument({ target: origin.document, origin: origin.origin });
+  }
   function closeDetails() {
+    setOpenDocument(null); setLinkNotice(null);
     setSelectedId(null);
     if (returnFocus.current?.isConnected) returnFocus.current.focus();
   }
@@ -274,7 +297,7 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       <button onClick={() => setFilters(emptyFilters)}>Clear search and filters</button>
     </div>
     {sessionToken && <>
-      <button disabled={!!savingId || reloading} onClick={() => { setCreating(true); setSelectedId(null); }}>New issue</button>
+      <button disabled={!!savingId || reloading} onClick={() => { setCreating(true); setSelectedId(null); setOpenDocument(null); }}>New issue</button>
       <IssueCreator visible={creating} issues={data.issues} saving={!!savingId || reloading} onClose={() => setCreating(false)} onCreate={createNewIssue} onReload={reloadForUser} />
     </>}
     {sessionToken && <p className="muted">Drag a card to another column or use Change status. Status changes save immediately; dependencies are advisory.</p>}
@@ -297,11 +320,17 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       })}
     </div>}
     {savingId && <p role="status">Saving issue…</p>}
-    <div className={selected ? 'board-layout has-details' : 'board-layout'} aria-busy={!!savingId || reloading}>
+    <DocumentList documents={supporting.documents} failed={supporting.failed} onOpen={(path) => showDocument({ path, fragment: null }, null)} />
+    <div className={selected || openDocument ? 'board-layout has-details' : 'board-layout'} aria-busy={!!savingId || reloading}>
       <div className="board-content"><BoardView data={data} workflow={workflow} filters={filters} onSelect={selectIssue} onStatusChange={onStatusChange} savingId={savingId ?? (reloading ? 'reload' : null)} /></div>
       {!selected && selectedId && <MissingIssue id={selectedId} draft={drafts[selectedId]} onClose={closeDetails}
         onDiscard={() => { retainDraft(selectedId, undefined); closeDetails(); }} />}
-      {selected && <IssueDetails issue={selected} issues={data.issues} onSelect={selectIssue} onClose={closeDetails} onStatusChange={onStatusChange} savingId={savingId ?? (reloading ? 'reload' : null)}
+      {openDocument && <DocumentPanel target={openDocument.target} notice={linkNotice} onClose={closeDetails}
+        onLink={(from, href) => { void followLink(from, href, { document: openDocument.target, origin: openDocument.origin }); }}
+        onBack={openDocument.origin ? () => goBack(openDocument.origin!) : undefined}
+        backLabel={openDocument.origin && 'issueId' in openDocument.origin ? 'Back to issue' : 'Back to previous document'} />}
+      {selected && <IssueDetails issue={selected} issues={data.issues} onSelect={selectIssue} onClose={closeDetails}
+        notice={linkNotice} onLink={(from, href) => { void followLink(from, href, { issueId: selected.id }); }} onStatusChange={onStatusChange} savingId={savingId ?? (reloading ? 'reload' : null)}
         editor={sessionToken ? { draft: drafts[selected.id], onDraft: (draft) => retainDraft(selected.id, draft), onWrite: writeIssue, onReload: reloadForUser } : undefined} />}
     </div>
   </>;

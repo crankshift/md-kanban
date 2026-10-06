@@ -5,6 +5,7 @@ import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createIssue, creationTargets } from './creation.js';
 import { discoverIssues } from './discovery.js';
+import { discoverDocuments, DocumentError, readDocument, resolveDocumentLink } from './documents.js';
 import { statusChangeSchema, issueEditSchema, commentAppendSchema } from './board.js';
 import { patchIssueStatus } from './issues.js';
 import { editIssue } from './edits.js';
@@ -65,7 +66,8 @@ export async function startServer(folder: string): Promise<RunningServer> {
         json(response, 403, { error: 'Open the app using its printed local URL.', code: 'invalid_origin' });
         return;
       }
-      const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+      const requested = new URL(request.url ?? '/', 'http://localhost');
+      const pathname = decodeURIComponent(requested.pathname);
       if (pathname === '/api/create' && request.method === 'POST') {
         try {
           if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before creating.');
@@ -123,6 +125,22 @@ export async function startServer(folder: string): Promise<RunningServer> {
         streams.add(response);
         response.on('close', () => { streams.delete(response); });
         response.write(`retry: 2000\nevent: ready\ndata: ${JSON.stringify({ version: watcher.version() })}\n\n`);
+        return;
+      }
+      if (pathname === '/api/documents' || pathname === '/api/document' || pathname === '/api/document-link') {
+        // Read-only: supporting documents are never written and every read re-checks the selected folder boundary.
+        try {
+          const params = requested.searchParams;
+          const value = pathname === '/api/documents' ? await discoverDocuments(creationRoot)
+            : pathname === '/api/document' ? await readDocument(creationRoot, params.get('path') ?? '')
+              : await resolveDocumentLink(creationRoot, params.get('from') ?? '', params.get('href') ?? '');
+          response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          response.end(request.method === 'HEAD' ? undefined : JSON.stringify(value));
+        } catch (error) {
+          const failure = error instanceof DocumentError ? error : new DocumentError(500, 'Cannot read supporting documents. Check folder access and reload.');
+          response.writeHead(failure.status, { 'Content-Type': 'application/json; charset=utf-8' });
+          response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ error: failure.message }));
+        }
         return;
       }
       if (pathname === '/api/creation-targets') {

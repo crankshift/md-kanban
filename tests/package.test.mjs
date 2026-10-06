@@ -20,6 +20,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   // Deliberately collide with package files: selected-folder content must never be served.
   await writeFile(join(folder, 'index.html'), 'PRIVATE_FOLDER_SENTINEL');
   await writeFile(join(folder, '01-example.md'), '# 01: Packaged issue\n\nStatus: ready-for-agent\n');
+  await writeFile(join(folder, 'spec.md'), '# Packaged specification\n\nStatus: proposed\n');
   const tarball = join(temporary, 'md-kanban.tgz');
   execFileSync('pnpm', ['pack', '--out', tarball], { cwd: checkout, stdio: 'pipe' });
   await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true }));
@@ -36,6 +37,12 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(board.issues.length, 1);
   assert.equal(board.issues[0].title, 'Packaged issue');
   assert.equal(board.issues[0].workflow, 'implementation');
+  // Supporting documents stay inside the selected folder and are never cards.
+  const { documents } = await (await fetch(`${url}/api/documents`)).json();
+  assert.deepEqual(documents.map((document) => [document.kind, document.path]), [['specification', 'spec.md']]);
+  assert.equal((await (await fetch(`${url}/api/document?path=spec.md`)).json()).title, 'Packaged specification');
+  const escape = new URLSearchParams({ from: '01-example.md', href: '../outside.md' });
+  assert.equal((await (await fetch(`${url}/api/document-link?${escape}`)).json()).status, 'unavailable');
   const saved = await fetch(`${url}/api/status`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': context.sessionToken, Origin: url },
     body: JSON.stringify({ path: board.issues[0].path, expectedRevision: board.issues[0].revision, status: 'needs-info' }),

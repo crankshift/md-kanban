@@ -4,10 +4,21 @@ import { basename, dirname, join, relative, sep } from 'node:path';
 import { compareIssues, type BoardData, type IssueContext } from './board.js';
 import { filenameNumber, numberedHeading, parseIssue } from './issues.js';
 
-const containers = new Set(['issues', 'tickets']);
+export const containers = new Set(['issues', 'tickets']);
 export const excluded = new Set(['.git', 'node_modules', 'vendor', 'dist', 'build', 'coverage', '.cache', '.next', '.pnpm-store', '.agents', '.codex', 'adr', 'assets']);
 const documents = /^(?:spec(?:ification)?|map|readme|agents|claude|glossary|implementation-(?:workflow|prompt.*))\.md$/i;
 const portable = (path: string): string => path.split(sep).join('/');
+
+/** How the selected folder was chosen: a repository root, a direct issue folder, or a feature/tracker folder. */
+export async function classifyRoot(root: string): Promise<{ direct: boolean; repository: boolean }> {
+  const top = await readdir(root, { withFileTypes: true });
+  const selectedContainer = containers.has(basename(root));
+  const hasDirectory = (names: string[]): boolean => top.some((entry) => names.includes(entry.name) && entry.isDirectory());
+  const repository = !selectedContainer && !['docs', '.scratch'].includes(basename(root)) && hasDirectory(['.git', '.scratch', 'docs']);
+  // A docs subfolder alone does not disqualify a directly selected issue folder.
+  const direct = selectedContainer || (!hasDirectory(['.git', '.scratch', 'issues', 'tickets']) && !['docs', '.scratch'].includes(basename(root)));
+  return { direct, repository };
+}
 
 export async function discoverIssues(folder: string): Promise<BoardData> {
   // The explicitly selected folder is the boundary, even when it was selected through a symlink.
@@ -84,12 +95,7 @@ export async function discoverIssues(folder: string): Promise<BoardData> {
       }
     }
   }
-  const top = await readdir(root, { withFileTypes: true });
-  const selectedContainer = containers.has(basename(root));
-  const hasDirectory = (names: string[]): boolean => top.some((entry) => names.includes(entry.name) && entry.isDirectory());
-  const repository = !selectedContainer && !['docs', '.scratch'].includes(basename(root)) && hasDirectory(['.git', '.scratch', 'docs']);
-  // A docs subfolder alone does not disqualify a directly selected issue folder.
-  const direct = selectedContainer || (!hasDirectory(['.git', '.scratch', 'issues', 'tickets']) && !['docs', '.scratch'].includes(basename(root)));
+  const { direct, repository } = await classifyRoot(root);
   await visit(root, direct, repository);
   result.issues.sort(compareIssues);
   return result;

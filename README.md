@@ -50,7 +50,15 @@ The board follows the files while the page stays connected: an agent or editor w
 
 Unsaved work is protected. If a file with a draft changes, the draft stays in its form with a notice that the file changed outside the app; saving it is still rejected as stale, so the external version is never overwritten. Review the latest Markdown, then use **Recover draft on latest version** as described above. If the file is removed or renamed, its draft stays in the details panel and the draft list as copyable text until you discard it; a renamed file appears as a new card, so reapply the changes there. A file that becomes malformed moves to **Needs attention** with its diagnostic and keeps the draft recoverable; if it is repaired, the draft returns to the form. An open issue without a draft simply follows its file. A creation form you have not touched follows new or changed folders; once you enter anything, the form keeps the loaded snapshot and warns that the folder changed, and the server rejects creating from it until you use **Reload containers, keep draft**. Your own saves do not produce false results: refreshes wait for a save in progress, and the notification an app write causes matches what was just saved.
 
-If the connection drops, the board says live updates are disconnected and reconnects automatically (use **Reload issues** to read the files immediately). If a refresh cannot read the folder, the last data stays on screen with an outdated warning. Press Ctrl+C to stop; the server closes its file watcher and every open connection. A browser allows only a handful of simultaneous connections per local address, and each open board tab holds one, so close extra tabs if the page stops responding. Supporting-document navigation follows in a later slice.
+If the connection drops, the board says live updates are disconnected and reconnects automatically (use **Reload issues** to read the files immediately). If a refresh cannot read the folder, the last data stays on screen with an outdated warning. Press Ctrl+C to stop; the server closes its file watcher and every open connection. A browser allows only a handful of simultaneous connections per local address, and each open board tab holds one, so close extra tabs if the page stops responding.
+
+### Supporting documents
+
+A **Supporting documents** section lists the specifications and wayfinding maps (`spec.md`, `specification.md`, `map.md`) beside each recognized issue container, plus every Markdown file in `docs/adr` when you launch from a repository root. Choose one to read its rendered Markdown in the side panel. The panel is read-only: it has no editing controls, never writes files, and the documents are never cards or Needs attention entries, so an ADR with `Status: proposed` stays a document.
+
+Relative links in an issue or supporting document open in the panel when the target is a Markdown file inside the selected folder. A link to a discovered issue opens that issue; **Back to issue** or **Back to previous document** returns to where you came from. `#section` links and `file.md#section` links scroll to the heading, using GitHub-style heading slugs; a missing section is reported and the document opens at the top. A missing target, a link outside the selected folder, a link through a symbolic link (even one that stays inside the folder), a non-Markdown file, an absolute path, or an unreadable file is reported as unavailable and is never read. Links starting with a scheme such as `https:` open in a new tab. Links in a body or comment preview stay inert so a draft cannot be navigated away.
+
+Launching an issue folder directly exposes only documents inside that folder, so its parent's specification and the repository's ADRs are unavailable; a feature/effort folder exposes its own `spec.md`/`map.md`, and ADRs only if that folder is itself laid out like a repository root (contains `.git`, `.scratch`, or `docs`). A document is read from disk each time it opens, when the window regains focus, and when you choose **Reload document**; edits made outside the app therefore appear on revisit, but an open document does not refresh on its own the way the board does. Documents larger than 2 MiB are not displayed.
 
 ## Intended registry usage (unreleased)
 
@@ -84,7 +92,7 @@ Launching without a path is the same as passing `./`. Keep the terminal command 
 - Refresh when your agent changes files and protect your unsaved edits when changes conflict.
 - Open related specs, maps, and architectural decisions from `docs/adr` alongside tickets.
 
-Ticket edits will save back to the original Markdown files, preserving unrelated content. Supporting documents such as ADRs will be read-only in the first release.
+Ticket edits save back to the original Markdown files, preserving unrelated content. Supporting documents such as ADRs are read-only.
 
 The first release will use your tickets' existing workflows. Implementation triage statuses describe readiness, rather than a separate Todo / In progress / Done lifecycle.
 
