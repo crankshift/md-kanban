@@ -63,3 +63,14 @@ export const issueCreateSchema = z.object({
   dependencies: issueChangesSchema.shape.dependencies.unwrap(),
 }).strict();
 export type IssueCreate = z.infer<typeof issueCreateSchema>;
+
+export const repairChangesSchema = z.object({
+  status: z.enum([...implementationStatuses, ...wayfindingStatuses]).optional(),
+  type: wayfindingType.nullable().optional(),
+}).strict().refine((changes) => Object.keys(changes).length > 0, 'Choose a metadata fix.');
+export const repairSchema = z.union([
+  issueWriteSchema.extend({ changes: repairChangesSchema }).strict(),
+  issueWriteSchema.extend({ content: z.string().max(500_000).refine((value) => !value.includes('\0'), 'Remove null characters.') }).strict(),
+]);
+export type Repair = Pick<z.infer<typeof repairSchema>, 'path' | 'expectedRevision'> &
+  ({ changes: z.infer<typeof repairChangesSchema> } | { content: string });

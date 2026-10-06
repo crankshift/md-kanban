@@ -78,3 +78,36 @@ export function appendIssueComment(content: string, comment: string): string {
   const heading = document.commentsStart === null ? `## Comments${newline}${newline}` : '';
   return prefix + gap + heading + comment.replace(/\r\n|\r|\n/g, newline) + (suffix ? newline + newline : newline) + suffix;
 }
+
+// Repairs deliberately retain diagnostics until the server parses the saved file.
+export function repairMarkdown(content: string, repair: { content: string } | { changes: { status?: string | undefined; type?: string | null | undefined } }): string {
+  if ('content' in repair) return repair.content;
+  for (const key of ['Status', 'Type'] as const) {
+    const value = key === 'Status' ? repair.changes.status : repair.changes.type;
+    if (value === undefined) continue;
+    const entries = [...leadingMetadata(content)];
+    const matches = entries.filter((entry) => entry.match &&
+      (entry.match[2] ?? entry.match[3] ?? entry.match[4])?.toLowerCase() === key.toLowerCase());
+    if (matches.length > 1) throw new Error(`Multiple ${key} lines: edit Markdown to choose which to keep.`);
+    const entry = matches[0];
+    if (entry) {
+      if (value === null) content = content.slice(0, entry.start) + content.slice(entry.end);
+      else {
+        const start = entry.start + entry.match![1]!.length;
+        content = content.slice(0, start) + value + content.slice(start + entry.match![5]!.length);
+      }
+    } else if (value !== null) {
+      if (entries.some((entry) => !entry.match && new RegExp(`^\\s*(?:\\*\\*)?${key}\\b`, 'i').test(entry.line)))
+        throw new Error(`Malformed ${key} line: edit Markdown to fix it.`);
+      const newline = content.includes('\r\n') ? '\r\n' : '\n';
+      const heading = content.match(/^\uFEFF?#.*(?:\r?\n|$)/m);
+      const end = entries.at(-1)?.end ?? (heading ? heading.index! + heading[0].length : undefined);
+      if (end === undefined) throw new Error('Add a title in the Markdown editor before inserting metadata.');
+      const style = entries.find((entry) => entry.match)?.match?.[1]?.trim();
+      const label = style ? style.replace(/Status|Type|Blocked by/i, key) : `${key}:`;
+      const prefix = content.slice(0, end);
+      content = prefix + (prefix.endsWith('\n') ? '' : newline) + `${label} ${value}${newline}` + content.slice(end);
+    }
+  }
+  return content;
+}

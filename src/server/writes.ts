@@ -42,7 +42,7 @@ export async function createIssueWriter(folder: string) {
 
   return {
     // Later field/body/comment edits reuse the same revision check and filesystem transaction.
-    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string): Promise<Issue> {
+    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string, allowDiagnostics = false): Promise<Issue> {
       const validated = issueWriteSchema.safeParse(request);
       if (!validated.success) return Promise.reject(new WriteError(400, 'invalid_request', 'Supply a root-relative issue path and expected revision.'));
       request = validated.data;
@@ -71,12 +71,12 @@ export async function createIssueWriter(folder: string) {
           }
           const current = await readCurrent(path, request.expectedRevision);
           const issue = parseIssue(context, current.bytes.toString('utf8'));
-          if (!issue.workflow) throw new WriteError(422, 'needs_attention', 'Issue metadata needs attention. Check the Markdown and reload issues.');
+          if (!allowDiagnostics && !issue.workflow) throw new WriteError(422, 'needs_attention', 'Issue metadata needs attention. Check the Markdown and reload issues.');
           let content: string;
           try { content = transform(issue); }
           catch (error) { throw new WriteError(422, 'invalid_change', error instanceof Error ? error.message : 'Invalid issue change.'); }
           const saved = parseIssue(context, content);
-          if (!saved.workflow) throw new WriteError(422, 'invalid_change', 'The change would produce invalid issue metadata.');
+          if (!allowDiagnostics && !saved.workflow) throw new WriteError(422, 'invalid_change', 'The change would produce invalid issue metadata.');
           if (content === issue.content) return saved;
           await checkPath(dirname(path));
           temporary = join(dirname(path), `.md-kanban-${randomUUID()}.tmp`);

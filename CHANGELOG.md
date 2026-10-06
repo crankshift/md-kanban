@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Explicit repairs for Needs attention files: workflow-labelled status and Type choices, whole-file Markdown editing with preview, preserved unrelated content, and stale-write rejection.
+
 - Mouse, touch, and keyboard dragging between status columns, with target highlighting, screen reader announcements, preserved issue order, and optimistic status saves that roll back on rejection.
 
 - Local CLI and packaged browser app for a selected Markdown folder, with loopback access and clean shutdown.

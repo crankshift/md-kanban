@@ -1,3 +1,4 @@
+import { FixPanel, type RepairActions } from './FixPanel';
 import { Box, Grid, Heading, Stack, Text } from '@chakra-ui/react';
 import { useEffect, useRef } from 'react';
 import { SafeMarkdown } from './SafeMarkdown';
@@ -15,6 +16,7 @@ export function IssueDetails({
   onStatusChange,
   savingId,
   editor,
+  repair,
   notice,
   onLink,
 }: StatusControls & {
@@ -24,6 +26,7 @@ export function IssueDetails({
   onSelect: (id: string) => void;
   onClose: () => void;
   editor?: EditorActions | undefined;
+  repair?: RepairActions | undefined;
   notice?: string | null | undefined;
   onLink?: ((from: string, href: string) => void) | undefined;
 }) {
@@ -52,6 +55,7 @@ export function IssueDetails({
       onStatusChange={onStatusChange}
       savingId={savingId}
       editor={editor}
+      repair={repair}
       notice={notice}
       onLink={onLink}
     />
@@ -65,6 +69,7 @@ function OpenedIssue({
   onStatusChange,
   savingId,
   editor,
+  repair,
   notice,
   onLink,
 }: StatusControls & {
@@ -73,10 +78,16 @@ function OpenedIssue({
   onSelect: (id: string) => void;
   onClose: () => void;
   editor?: EditorActions | undefined;
+  repair?: RepairActions | undefined;
   notice?: string | null | undefined;
   onLink?: ((from: string, href: string) => void) | undefined;
 }) {
   const panel = useRef<HTMLElement>(null);
+  const dirtyParts = useRef({ editor: false, repair: false });
+  function mark(part: 'editor' | 'repair', value: boolean) {
+    dirtyParts.current[part] = value;
+    (editor?.onDirty ?? repair?.onDirty)?.(dirtyParts.current.editor || dirtyParts.current.repair);
+  }
   useEffect(() => {
     panel.current?.focus();
     panel.current?.scrollTo?.(0, 0);
@@ -103,13 +114,7 @@ function OpenedIssue({
       >
         <Stack gap="4" minW="0">
           {notice && <p role="alert">{notice}</p>}
-          {issue.diagnostics.length > 0 && (
-            <ul role="alert">
-              {issue.diagnostics.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          )}
+          {repair ? <FixPanel issue={issue} saving={!!savingId} {...repair} onDirty={(value) => mark('repair', value)} /> : issue.diagnostics.length > 0 && <ul role="alert">{issue.diagnostics.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
 
           <section className="markdown" aria-label="Issue Markdown and comments">
             {issue.content === null ? (
@@ -127,6 +132,7 @@ function OpenedIssue({
               issues={issues}
               saving={!!savingId}
               {...editor}
+              onDirty={(value) => mark('editor', value)}
             />
           )}
         </Stack>

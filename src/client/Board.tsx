@@ -8,7 +8,7 @@ import { useMutation, useMutationState, useQueryClient } from '@tanstack/react-q
 import { useBlocker, useLocation, useNavigate } from 'react-router';
 import { parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { boardKey, diskKey, useDiskQuery } from './ClientState';
-import { appendIssueComment, patchIssueBody } from '../server/document.js';
+import { appendIssueComment, patchIssueBody, repairMarkdown } from '../server/document.js';
 import {
   boardSchema,
   issueSchema,
@@ -353,7 +353,7 @@ export function Board({
   }, [client]);
   type Write = {
     base?: Issue;
-    endpoint: 'status' | 'edit' | 'comment' | 'create';
+    endpoint: 'status' | 'edit' | 'comment' | 'create' | 'repair';
     fields: Record<string, unknown>;
     submitted?: IssueDraft | undefined;
   };
@@ -403,6 +403,7 @@ export function Board({
         };
       } else {
         optimistic = { ...base };
+        if (endpoint === 'repair') optimistic.content = repairMarkdown(base.content!, fields as import('./FixPanel').RepairFields);
         if (endpoint === 'status') optimistic.status = String(fields.status);
         if (endpoint === 'comment')
           optimistic.content = appendIssueComment(base.content!, String(fields.comment));
@@ -459,9 +460,11 @@ export function Board({
         ].sort(compareIssues),
       }));
       toaster.create({
-        type: 'success',
+        type: request.endpoint === 'repair' && saved.diagnostics.length ? 'warning' : 'success',
         title:
-          request.endpoint === 'comment'
+          request.endpoint === 'repair'
+            ? saved.diagnostics.length ? `#${saved.number} still needs attention` : `#${saved.number} is on the ${saved.workflow} board`
+            : request.endpoint === 'comment'
             ? 'Comment appended'
             : request.endpoint === 'create'
               ? 'Issue created'
@@ -811,6 +814,7 @@ export function Board({
             }}
             onStatusChange={onStatusChange}
             savingId={savingId ?? (reloading ? 'reload' : null)}
+            repair={sessionToken ? { onDirty: setDirty, onRepair: (base, fields) => write({ base, endpoint: 'repair', fields }) } : undefined}
             editor={
               sessionToken
                 ? {

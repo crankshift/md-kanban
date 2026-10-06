@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { createIssue, creationTargets } from './creation.js';
 import { discoverIssues } from './discovery.js';
 import { discoverDocuments, DocumentError, readDocument, resolveDocumentLink } from './documents.js';
-import { statusChangeSchema, issueEditSchema, commentAppendSchema } from './board.js';
+import { statusChangeSchema, issueEditSchema, commentAppendSchema, repairSchema } from './board.js';
 import { patchIssueStatus } from './issues.js';
 import { editIssue } from './edits.js';
-import { appendIssueComment } from './document.js';
+import { appendIssueComment, repairMarkdown } from './document.js';
 import { createBoardWatcher } from './watcher.js';
 import { createIssueWriter, WriteError } from './writes.js';
 
@@ -98,6 +98,18 @@ export async function startServer(folder: string): Promise<RunningServer> {
         }
         return;
       }
+      if (pathname === '/api/repair' && request.method === 'POST') {
+        try {
+          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
+          const parsed = repairSchema.safeParse(await readJson(request, 1024 * 1024));
+          if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
+          json(response, 200, await writer.update(parsed.data, (issue) => repairMarkdown(issue.content!, parsed.data), true));
+        } catch (error) {
+          const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Cannot repair issue. Reload and try again.');
+          json(response, failure.status, { error: failure.message, code: failure.code });
+        }
+        return;
+      }
       if (pathname === '/api/status' && request.method === 'POST') {
         try {
           if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
@@ -111,7 +123,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
         return;
       }
       if (request.method !== 'GET' && request.method !== 'HEAD') {
-        response.writeHead(405, { Allow: ['/api/status', '/api/edit', '/api/comment', '/api/create'].includes(pathname) ? 'POST' : 'GET, HEAD' }).end();
+        response.writeHead(405, { Allow: ['/api/status', '/api/edit', '/api/comment', '/api/create', '/api/repair'].includes(pathname) ? 'POST' : 'GET, HEAD' }).end();
         return;
       }
       if (pathname === '/api/context') {

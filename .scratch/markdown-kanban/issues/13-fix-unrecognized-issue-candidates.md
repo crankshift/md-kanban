@@ -31,3 +31,12 @@ The fix panel was approved in the prototype at commit `3a6620a` (`FixPanel` in `
 - Relevant API and UI tests, type checking, and the production build pass.
 
 ## Comments
+
+### Implementation result — 2026-10-06
+
+- Added `POST /api/repair` (`src/server/server.ts`, `repairSchema` in `src/server/board.ts`). It accepts either `changes` (`status`, `type`, with `type: null` removing the Type line) or full replacement `content`, uses the session header, origin restrictions, a 1 MiB request limit, and the shared writer's revision, queue, lock, and atomic-replace protections. Only this endpoint passes `allowDiagnostics` to `writer.update`, so status, edit, and comment writes still require valid issues.
+- `repairMarkdown` in `src/server/document.ts` rewrites only the chosen metadata value, keeping key style, spacing, line endings, BOM, and unrelated bytes. A missing key is inserted beside existing metadata or below the title. Duplicate or malformed chosen keys are rejected with a message pointing to the Markdown editor. The server re-parses the saved file and returns it with its current diagnostics.
+- Added `src/client/FixPanel.tsx`, which replaces the diagnostic list in the issue dialog: workflow-labelled status picker, type picker, a Remove Type checkbox for implementation-status conflicts, **Apply fixes**, **Reset fixes**, and **Edit Markdown** (Write/Preview, **Save file**, confirmation on discarding). `IssueDetails` merges its dirty state with the structured editor's. The existing TanStack write mutation previews the repaired content, rolls back on error, shows a warning toast when diagnostics remain, and names the board when none do.
+- Tests: `tests/repair-api.test.mjs` and `tests/repair-ui.test.mjs`. Updated README, CONTRIBUTING, and Unreleased CHANGELOG.
+- Verification: `pnpm check` passed strict type checking, the production build, and all 122 tests on macOS. The Type-controls UI test was split into two tests: with both fixes in one render, a toast left over from the first Apply intermittently dismissed the second dialog under jsdom when a picker option was clicked (about half of runs). This was not reproduced without the prior Apply and was not investigated in a real browser.
+- Not done: no production-browser check and no Standards/Spec code review of this ticket yet. Existing filesystem-race and interrupted-lock limitations from earlier tickets still apply.
