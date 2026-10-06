@@ -2,6 +2,8 @@
 
 The functionality and stack choices below were agreed through a design interview. This document captures the agreed v1 scope.
 
+Implementation is sequenced in [the implementation workflow](implementation-workflow.md), using a single `feat/md-kanban-v1` branch. Runs proceed without routine clarification questions and copy the next ticket's saved prompt to the clipboard after completing the current ticket.
+
 ## Agreed choices
 
 - Develop md-kanban as an open-source project under the MIT license at `https://github.com/crankshift/md-kanban`.
