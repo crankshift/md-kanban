@@ -25,7 +25,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 12 — Drag cards between status columns
 - [x] 13 — Fix unrecognized issue candidates from Needs attention
 - [x] 14 — Rename the package and product to mdkanban
-- [ ] 09 — Verify the complete v1 and prepare the local release candidate
+- [x] 09 — Verify the complete v1 and prepare the local release candidate
 
 ## Each implementation run
 

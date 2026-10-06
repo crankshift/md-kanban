@@ -1,6 +1,6 @@
 # Contributing to mdkanban
 
-Start with the [v1 specification](.scratch/markdown-kanban/spec.md), [glossary](GLOSSARY.md), and [architectural decisions](docs/adr/). The current slice launches a local app with discovery, safe status changes, issue creation/editing/comments, Markdown details, dependency navigation, search/filters, and live refresh of external changes, and read-only supporting-document browsing.
+Start with the [v1 specification](.scratch/markdown-kanban/spec.md), [glossary](GLOSSARY.md), and [architectural decisions](docs/adr/). Version 0.1.0 implements the whole v1 specification: a local app with discovery, dragging and safe status changes, issue creation/editing/comments, explicit Needs attention fixes, Markdown details, dependency navigation, search/filters, live refresh of external changes, and read-only supporting-document browsing. It is verified as a packed local package; npm publication is a separate release step.
 
 ## Setup and checks
 
@@ -44,6 +44,23 @@ pnpm add --offline --ignore-scripts "$verification_dir/mdkanban.tgz"
 ```
 
 Open the printed URL. Confirm the project name, selected folder, empty implementation columns, and workflow switching. To see a real card, create `01-example.md` in the temporary `issues` folder with `# 01: Example` and `Status: ready-for-agent` on separate lines, then reload. Open the card, read its Markdown, and try searching and filtering. Drag its grip handle to `needs-info` and back with mouse and touch; focus the handle and use Space/Enter, arrow keys (Shift to move faster), and Escape to verify keyboard move/cancel, column highlighting, announcements, and restored focus. Confirm same-column and outside-column drops do not write. Use its status menu as an alternative; inspect the Markdown on disk. Edit the issue externally and confirm the card and details update without reloading, then change it externally while an unsaved draft is open and confirm the draft, conflict notice, and rejected stale save. Delete or rename a file with a draft and confirm the draft stays recoverable. Open Edit issue, change its title/body, preview, and Save issue; append a comment separately and inspect the preserved content. Change a field and try switching issues: cancel to keep the editor, or confirm and return to verify the draft was discarded. Use Reload issues, keep draft after an external edit, then review/recover before saving. Add another numbered issue with `Blocked by: 01 — Example` to verify dependency navigation. Use New issue to create another issue, verify its details and search without restarting, and inspect its allocated number on disk. Change an existing issue externally after opening creation, then confirm rejection and draft retention; reload containers explicitly before retrying. Press Ctrl+C to stop and confirm the process exits promptly with the page still open. Remove the temporary directory with `rm -rf "$verification_dir"` after inspecting it. `pnpm pack` runs type checking and rebuilds the package automatically; its file allowlist includes compiled assets and public documentation only.
+
+Before removing the directory, you can also run the tarball the way the registry commands will run the published package. Use it from any folder outside the checkout:
+
+```sh
+npx --yes --package "$verification_dir/mdkanban.tgz" mdkanban --no-open ./
+pnpm dlx --package "$verification_dir/mdkanban.tgz" mdkanban --no-open ./
+```
+
+### Release-candidate checks
+
+Before a release, run `pnpm check` once after the final changes, then check the packed package from outside the checkout:
+
+- List the tarball with `tar -tzf "$verification_dir/mdkanban.tgz"`. It should contain only `package.json`, `README.md`, `LICENSE`, `dist/server/*.js`, and `dist/client` (`index.html`, one script, one stylesheet, and the bundled fonts). There should be no source maps, tests, `.scratch` tickets, or machine-specific paths.
+- Launch it against a repository-root fixture covering `.scratch`, `docs/<feature>/tickets`, both workflows, a Needs attention file, a specification, a map, and an ADR. Launching with no folder, with `./`, and with a relative path from the parent directory should select the same folder. Also launch a tracker folder, a feature folder, and an issue folder directly.
+- Walk the main journey in a real browser: read an issue and follow its dependency, move status by dragging and with the keyboard, switch between Board and List, jump with the command palette, collapse the sidebar, edit and comment, create an issue, watch an external edit appear, recover a draft after a stale save, fix a Needs attention file, read an ADR, and reload a deep link. Check the Markdown on disk after each write.
+
+Keep fixtures, browser scripts, and screenshots outside the repository.
 
 ## Discovery boundary
 

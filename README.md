@@ -6,9 +6,9 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI, boards, safe status changes, issue creation, editing and comments, dependency navigation, search, and live refresh of external changes are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
+Version 0.1.0 is complete and verified as a local package, but it is not on npm yet. Until it is published, run it from a checkout or install a packed tarball. The CLI, boards, dragging and status changes, issue creation, editing and comments, Needs attention fixes, dependency navigation, search, supporting documents, and live refresh of external changes all work today. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
-Use Node 22.22 or newer for checkout development and pnpm 11.21.0 (the built CLI supports Node 22.12 or newer):
+The installed CLI needs Node 22.12 or newer. Building from a checkout needs Node 22.22 or newer and pnpm 11.21.0:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -18,7 +18,7 @@ pnpm start --no-open ./
 
 Open the printed loopback URL. Omit `--no-open` to launch your default browser automatically; if opening fails, use the printed URL manually. Keep the terminal running, and press Ctrl+C to stop. An omitted folder defaults to the caller’s current directory. Relative folders resolve from that directory; invalid or inaccessible folders fail before startup.
 
-To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). No registry publication is needed.
+To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). This needs no registry access to mdkanban.
 
 Discovery includes `issues/` and `tickets/` containers under `.scratch` and `docs`, combining locations without duplicate paths. A directly selected issue folder can have any name. Cards show issue number, title, feature, and folder context, sorted by feature and number. Implementation columns describe triage readiness; wayfinding columns use `open`, `claimed`, and `resolved`.
 
@@ -74,7 +74,7 @@ Launching an issue folder directly exposes only documents inside that folder, so
 
 ## Intended registry usage (unreleased)
 
-**Under development:** the app and CLI are not released yet. The commands below describe how you will use mdkanban once it is published.
+**Not yet published:** mdkanban is not on the npm registry yet, so these commands do not work. They describe how you will run it once it is published; until then, use [the local app](#run-the-local-app-today).
 
 From your project or ticket folder, run either command:
 
@@ -93,20 +93,21 @@ pnpx mdkanban ../another-project/.scratch
 
 Launching without a path is the same as passing `./`. Keep the terminal command running while you use the board.
 
-## What the board will do
+## What the board does
 
 - Find tickets in `.scratch`, `docs`, or a ticket folder you select.
 - Show implementation and wayfinding tickets in separate boards using their existing statuses.
-- Provide immediate status changes through mouse, touch, and keyboard dragging or searchable status pickers.
+- Change status immediately by dragging with a mouse, touch, or the keyboard, or with searchable status pickers.
 - Help you find work with search and feature/folder filters.
 - Show dependencies and link directly to related tickets.
 - Let you create and edit tickets, preview Markdown, and add comments.
+- List files with missing or unknown metadata under Needs attention and let you fix them explicitly.
 - Refresh when your agent changes files and protect your unsaved edits when changes conflict.
 - Open related specs, maps, and architectural decisions from `docs/adr` alongside tickets.
 
 Ticket edits save back to the original Markdown files, preserving unrelated content. Supporting documents such as ADRs are read-only.
 
-The first release will use your tickets' existing workflows. Implementation triage statuses describe readiness, rather than a separate Todo / In progress / Done lifecycle.
+The board uses your tickets' existing workflows. Implementation triage statuses describe readiness, rather than a separate Todo / In progress / Done lifecycle.
 
 ## Get involved
 

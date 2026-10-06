@@ -2,14 +2,17 @@ import { Badge, HStack } from '@chakra-ui/react';
 import { resolveDependencies, type Dependency } from '../server/dependencies.js';
 import type { Issue } from '../server/board.js';
 
+// Badges wrap so long labels stay inside narrow cards.
+const badge = { size: 'xs', whiteSpace: 'normal' } as const;
+
 export function DependencyIndicators({ dependencies }: { dependencies: Dependency[] }) {
   const count = (state: string) => dependencies.filter((entry) => entry.kind === 'linked' && entry.state === state).length;
   const attention = dependencies.filter((entry) => entry.kind !== 'linked' || entry.state === 'unknown').length;
   return <HStack gap="1" flexWrap="wrap" aria-label="Dependency indicators">
-    {count('advisory') > 0 && <Badge size="xs">{count('advisory')} advisory {count('advisory') === 1 ? 'dependency' : 'dependencies'}</Badge>}
-    {count('blocked') > 0 && <Badge size="xs" colorPalette="yellow">{count('blocked')} unresolved {count('blocked') === 1 ? 'blocker' : 'blockers'}</Badge>}
-    {count('resolved') > 0 && <Badge size="xs">{count('resolved')} resolved {count('resolved') === 1 ? 'prerequisite' : 'prerequisites'}</Badge>}
-    {attention > 0 && <Badge size="xs" colorPalette="yellow">{attention} dependency {attention === 1 ? 'reference needs' : 'references need'} attention</Badge>}
+    {count('advisory') > 0 && <Badge {...badge}>{count('advisory')} advisory {count('advisory') === 1 ? 'dependency' : 'dependencies'}</Badge>}
+    {count('blocked') > 0 && <Badge {...badge} colorPalette="yellow">{count('blocked')} unresolved {count('blocked') === 1 ? 'blocker' : 'blockers'}</Badge>}
+    {count('resolved') > 0 && <Badge {...badge}>{count('resolved')} resolved {count('resolved') === 1 ? 'prerequisite' : 'prerequisites'}</Badge>}
+    {attention > 0 && <Badge {...badge} colorPalette="yellow">{attention} dependency {attention === 1 ? 'reference needs' : 'references need'} attention</Badge>}
   </HStack>;
 }
 
