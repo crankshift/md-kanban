@@ -1,4 +1,5 @@
 import { Box, Button, Collapsible, Heading, HStack, Input, Stack, Text } from '@chakra-ui/react';
+import { DragCard, StatusDragBoard, StatusDropColumn } from './DragBoard';
 import { Navigator, Overlay, featureKey } from './Navigator';
 import { Picker } from './Picker';
 import { toaster } from './components/ui/toaster';
@@ -89,7 +90,7 @@ export function BoardView({
       </Stack>
     );
   function card(issue: Issue) {
-    return (
+    const content = (
       <Box
         as="article"
         aria-label={`Issue #${issue.number ?? '?'}: ${issue.title}`}
@@ -98,6 +99,7 @@ export function BoardView({
         borderWidth="1px"
         rounded="l2"
         p="3"
+        pb={mode === 'board' && onStatusChange ? '8' : '3'}
         _hover={{ borderColor: 'border.emphasized' }}
       >
         <HStack align="start">
@@ -146,76 +148,81 @@ export function BoardView({
         </HStack>
       </Box>
     );
+    return mode === 'board' ? (
+      <DragCard
+        key={issue.id}
+        issue={issue}
+        disabled={!onStatusChange || !!savingId || !issue.revision || issue.id === 'creating'}
+      >
+        {content}
+      </DragCard>
+    ) : (
+      content
+    );
   }
   return (
-    <Box p="6" pt="2">
-      {data.warnings.map((warning) => (
-        <Text role="alert" key={warning}>
-          {warning}
-        </Text>
-      ))}
-      {!issues.length && (
-        <Text py="6">
-          {query || filters.location || filters.feature
-            ? `No ${workflow} issues match the current search and filters. Clear the filters to see more issues.`
-            : `No ${workflow} issues found in this folder. Add an issue in an existing feature or effort to get started.`}
-        </Text>
-      )}
-      <Box
-        aria-label={`${workflow} ${mode}`}
-        display={mode === 'board' ? 'grid' : 'block'}
-        gridTemplateColumns={`repeat(${statuses.length}, minmax(12rem, 1fr))`}
-        gap="3"
-        minW="0"
-      >
-        {statuses.map((status) => {
-          const column = issues.filter((issue) => issue.status === status);
-          const title = (
-            <HStack justify="space-between" mb="3">
-              <Text fontWeight="medium">{status}</Text>
-              <Text color="fg.muted">{column.length}</Text>
-            </HStack>
-          );
-          return mode === 'list' ? (
-            <Collapsible.Root key={status} defaultOpen mb="4">
-              <Collapsible.Trigger asChild>
-                <Button
-                  variant="ghost"
-                  w="full"
-                  justifyContent="start"
-                  aria-label={`Toggle ${status}`}
-                >
-                  {title}
-                </Button>
-              </Collapsible.Trigger>
-              <Collapsible.Content>
-                <Stack gap="2">{column.map(card)}</Stack>
-              </Collapsible.Content>
-            </Collapsible.Root>
-          ) : (
-            <Box
-              as="section"
-              key={status}
-              aria-label={status}
-              bg="bg.muted"
-              rounded="l2"
-              p="2"
-              minH="40"
-            >
-              {title}
-              <Stack gap="2">
-                {column.map(card)}
-                {!column.length && (
-                  <Text fontSize="xs" color="fg.muted" px="1">
-                    No issues
-                  </Text>
-                )}
-              </Stack>
-            </Box>
-          );
-        })}
+    <StatusDragBoard workflow={workflow} onStatusChange={onStatusChange} savingId={savingId}>
+      <Box p="6" pt="2">
+        {data.warnings.map((warning) => (
+          <Text role="alert" key={warning}>
+            {warning}
+          </Text>
+        ))}
+        {!issues.length && (
+          <Text py="6">
+            {query || filters.location || filters.feature
+              ? `No ${workflow} issues match the current search and filters. Clear the filters to see more issues.`
+              : `No ${workflow} issues found in this folder. Add an issue in an existing feature or effort to get started.`}
+          </Text>
+        )}
+        <Box
+          aria-label={`${workflow} ${mode}`}
+          display={mode === 'board' ? 'grid' : 'block'}
+          gridTemplateColumns={`repeat(${statuses.length}, minmax(12rem, 1fr))`}
+          gap="3"
+          minW="0"
+        >
+          {statuses.map((status) => {
+            const column = issues.filter((issue) => issue.status === status);
+            const title = (
+              <HStack justify="space-between" mb="3">
+                <Text fontWeight="medium">{status}</Text>
+                <Text color="fg.muted">{column.length}</Text>
+              </HStack>
+            );
+            return mode === 'list' ? (
+              <Collapsible.Root key={status} defaultOpen mb="4">
+                <Collapsible.Trigger asChild>
+                  <Button
+                    variant="ghost"
+                    w="full"
+                    justifyContent="start"
+                    aria-label={`Toggle ${status}`}
+                  >
+                    {title}
+                  </Button>
+                </Collapsible.Trigger>
+                <Collapsible.Content>
+                  <Stack gap="2">{column.map(card)}</Stack>
+                </Collapsible.Content>
+              </Collapsible.Root>
+            ) : (
+              <StatusDropColumn key={status} status={status} workflow={workflow}>
+                {title}
+                <Stack gap="2">
+                  {column.map(card)}
+                  {!column.length && (
+                    <Text fontSize="xs" color="fg.muted" px="1">
+                      No issues
+                    </Text>
+                  )}
+                </Stack>
+              </StatusDropColumn>
+            );
+          })}
+        </Box>
       </Box>
-    </Box>
+    </StatusDragBoard>
   );
 }
 
@@ -579,14 +586,14 @@ export function Board({
     setLinkNotice(null);
     if (returnFocus.current?.isConnected) returnFocus.current.focus();
   }
-  async function changeStatus(id: string, status: string) {
-    const issue = data.issues.find((candidate) => candidate.id === id);
+  async function changeStatus(id: string, status: string, base?: Issue) {
+    const issue = base ?? data.issues.find((candidate) => candidate.id === id);
     if (!sessionToken || !issue?.revision || issue.status === status || mutation.isPending) return;
     await write({ base: issue, endpoint: 'status', fields: { status } }).catch(() => {});
   }
   const onStatusChange = sessionToken
-    ? (id: string, status: string) => {
-        void changeStatus(id, status);
+    ? (id: string, status: string, base?: Issue) => {
+        void changeStatus(id, status, base);
       }
     : undefined;
   const attention = view.attention === 'true';
@@ -715,8 +722,8 @@ export function Board({
           issues.
         </Text>
       )}
-      {result?.error && (
-        <Text role="alert" px="6">
+      {result && (
+        <Text role={result.error ? 'alert' : 'status'} aria-live="polite" px="6">
           {result.message}
         </Text>
       )}

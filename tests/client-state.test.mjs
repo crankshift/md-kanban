@@ -95,6 +95,8 @@ test('creation is optimistic without a number until confirmed and failure remove
   await ui.click(button(ui, 'Create issue'));
   const pending = ui.document.querySelector('button[aria-label^="Creating:"]').closest('article[aria-label^="Issue #"]');
   assert.equal(pending.querySelector('[aria-label="Issue number"]').textContent, 'Creating…');
+  assert.equal(ui.document.getElementById('drag-creating').disabled, true, 'unconfirmed creation cannot be dragged');
+  assert.ok([...ui.document.querySelectorAll('button[id^="drag-"]')].every((node) => node.disabled), 'all handles pause during creation');
   assert.doesNotMatch(pending.querySelector('[aria-label="Issue number"]').textContent, /#/);
   await act(async () => reject(new Error('Creation offline')));
   await ui.settled();

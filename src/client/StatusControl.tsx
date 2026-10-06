@@ -4,7 +4,7 @@ import { Picker, choices } from './Picker';
 import { implementationStatuses, wayfindingStatuses, type Issue } from '../server/board.js';
 
 export type StatusControls = {
-  onStatusChange?: ((id: string, status: string) => void) | undefined;
+  onStatusChange?: ((id: string, status: string, base?: Issue) => void) | undefined;
   savingId?: string | null | undefined;
 };
 

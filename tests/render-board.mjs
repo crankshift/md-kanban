@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 // Load before the per-test DOM so Node uses server defaults without browser cache-GC timers.
 import '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
@@ -50,13 +50,42 @@ function streamingEventSource(nativeFetch, url, inAct, sources) {
 export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', application = false } = {}) {
   const folder = await fixture(t, files);
   const data = await discoverIssues(folder);
-  const dom = new JSDOM('<div id="root"></div>', { url: address });
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+  virtualConsole.on('jsdomError', (error) => {
+    // jsdom 26 cannot parse dnd-kit's CSS layers/nesting; real-browser verification covers styling.
+    if (error.type === 'css parsing' && error.detail?.includes('@layer dnd-kit')) return;
+    console.error(error);
+  });
+  const dom = new JSDOM('<div id="root"></div>', { url: address, virtualConsole });
   dom.window.matchMedia = (query) => ({ matches: false, media: query, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
   dom.window.requestAnimationFrame = (callback) => setTimeout(callback, 0);
   dom.window.cancelAnimationFrame = clearTimeout;
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  dom.window.IntersectionObserver = class {
+    constructor(callback) { this.callback = callback; }
+    observe(element) { queueMicrotask(() => { if (!this.closed) this.callback([{ target: element, boundingClientRect: element.getBoundingClientRect(), intersectionRect: element.getBoundingClientRect(), isIntersecting: true, intersectionRatio: 1 }]); }); }
+    unobserve() {}
+    disconnect() { this.closed = true; }
+  };
   dom.window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-  const globals = { CSS: { escape: (value) => value.replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char}`) }, getComputedStyle: dom.window.getComputedStyle, Node: dom.window.Node, Element: dom.window.Element, HTMLInputElement: dom.window.HTMLInputElement, MutationObserver: dom.window.MutationObserver, requestAnimationFrame: dom.window.requestAnimationFrame, cancelAnimationFrame: dom.window.cancelAnimationFrame, ResizeObserver: dom.window.ResizeObserver, window: dom.window, location: dom.window.location, history: dom.window.history, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  dom.window.document.elementFromPoint = () => dom.window.document.body;
+  dom.window.document.elementsFromPoint = () => [dom.window.document.body];
+  dom.window.document.getAnimations = () => [];
+  dom.window.HTMLElement.prototype.animate = () => ({ finished: Promise.resolve(), cancel() {}, finish() {} });
+  dom.window.HTMLElement.prototype.getAnimations = () => [];
+  // Node fetch needs Node's AbortController; DOM listeners need signals from their own realm.
+  const addListener = dom.window.EventTarget.prototype.addEventListener;
+  dom.window.EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (options?.signal && !(options.signal instanceof dom.window.AbortSignal)) {
+      const controller = new dom.window.AbortController();
+      if (options.signal.aborted) controller.abort();
+      else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      options = { ...options, signal: controller.signal };
+    }
+    return addListener.call(this, type, listener, options);
+  };
+  const globals = { IntersectionObserver: dom.window.IntersectionObserver, Document: dom.window.Document, ShadowRoot: dom.window.ShadowRoot, SVGElement: dom.window.SVGElement, KeyboardEvent: dom.window.KeyboardEvent, MouseEvent: dom.window.MouseEvent, CSS: { escape: (value) => value.replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char}`) }, getComputedStyle: dom.window.getComputedStyle, Node: dom.window.Node, Element: dom.window.Element, HTMLInputElement: dom.window.HTMLInputElement, MutationObserver: dom.window.MutationObserver, requestAnimationFrame: dom.window.requestAnimationFrame, cancelAnimationFrame: dom.window.cancelAnimationFrame, ResizeObserver: dom.window.ResizeObserver, window: dom.window, location: dom.window.location, history: dom.window.history, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
   let sessionToken;
   let server;
   const sources = [];

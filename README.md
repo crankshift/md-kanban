@@ -30,7 +30,7 @@ Dependencies resolve within the issue's feature/effort and location, across its 
 
 Dependency badges are advisory. A valid wayfinding prerequisite in `open` or `claimed` is an unresolved blocker; `resolved` stops blocking. Unknown prerequisite states remain visible. Implementation triage readiness never implies completion.
 
-Use a card’s status menu or the status picker in its detail dialog with a keyboard, mouse, or touch device. Dragging between columns follows in ticket 12. Changes save immediately to the original Markdown file, using only statuses in that issue's workflow. Dependencies do not prohibit transitions. Only the status value changes; metadata style, whitespace, line endings, unknown sections, checkboxes, and comments stay intact.
+Drag a card by its grip handle to another status column with a mouse, or hold the handle briefly before moving with touch. With a keyboard, focus the handle, press Space or Enter to pick up, use arrow keys to move (Shift plus an arrow moves faster), and press Space or Enter to drop or Escape to cancel. The target column is highlighted and moves and save results are announced to screen readers. The card’s status menu and detail status picker remain available, including in List view. Same-column, outside-column, and cancelled drops write nothing; card order stays feature, then issue number. Changes save immediately to the original Markdown file, using only statuses in that issue's workflow. Dependencies do not prohibit transitions. Only the status value changes; metadata style, whitespace, line endings, unknown sections, checkboxes, and comments stay intact.
 
 The board shows status moves, field saves, comments, and creation immediately while the server writes. Pending controls are disabled. A new issue displays **Creating…** without a number until the server confirms it. Failures roll the change back and report an error; stale writes also reload the latest issues for review. A lost response can follow a successful write, so inspect the refreshed Markdown before retrying, especially comments and creation. The local write API checks the app session, origin, selected-folder boundary, and expected file or container revision.
 
@@ -91,7 +91,7 @@ Launching without a path is the same as passing `./`. Keep the terminal command 
 
 - Find tickets in `.scratch`, `docs`, or a ticket folder you select.
 - Show implementation and wayfinding tickets in separate boards using their existing statuses.
-- Provide immediate status changes through searchable pickers; keyboard, mouse, and touch dragging follows in ticket 12.
+- Provide immediate status changes through mouse, touch, and keyboard dragging or searchable status pickers.
 - Help you find work with search and feature/folder filters.
 - Show dependencies and link directly to related tickets.
 - Let you create and edit tickets, preview Markdown, and add comments.

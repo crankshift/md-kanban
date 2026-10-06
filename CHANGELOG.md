@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Mouse, touch, and keyboard dragging between status columns, with target highlighting, screen reader announcements, preserved issue order, and optimistic status saves that roll back on rejection.
+
 - Local CLI and packaged browser app for a selected Markdown folder, with loopback access and clean shutdown.
 - Discovery across `.scratch`, `docs`, features, efforts, and directly selected issue folders; separate implementation and wayfinding boards and Needs attention diagnostics.
 - Issue details, safe Markdown previews, scoped dependencies, advisory blocker badges, search, and combined location/feature filters.
@@ -23,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuilt the interface as a Chakra navigator with an orange accent, system-aware light/dark modes, compact cards, and grouped Board/List views restored from the URL.
 - Issue creation, reading, and editing now open in centered dialogs over the full-width board. Followed links retain Back history and breadcrumbs; a command palette searches issues and supporting documents.
 - Added searchable comboboxes, fixed-height Write/Preview tabs, a collapsible sidebar/icon rail, and toast feedback for saves and rejected writes. Needs attention remains read-only until its repair ticket.
-- Removed the throwaway prototype and its build/demo entry points. Status menus remain available while the new dragging interaction follows in ticket 12.
+- Removed the throwaway prototype and its build/demo entry points. Status menus remain available as an alternative to dragging.
 
 - File reads and writes now use one TanStack Query cache. Writes appear optimistically, roll back on failure, and pause refetches until settlement; creation shows no number until confirmation.
 - Drafts belong only to their open editor. Closing asks to discard unsaved work; external conflicts show changed fields with discard/reapply recovery and extra confirmation for overlapping changes.
