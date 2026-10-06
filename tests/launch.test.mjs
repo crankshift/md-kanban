@@ -14,7 +14,9 @@ test('CLI selects caller cwd and serves the app from package assets', { timeout:
   t.after(() => rm(folder, { recursive: true, force: true }));
   const app = await launch(t, cli, folder, ['--no-open']);
   const url = await app.url;
-  assert.deepEqual(await (await fetch(`${url}/api/context`)).json(), { folder });
+  const context = await (await fetch(`${url}/api/context`)).json();
+  assert.equal(context.folder, folder);
+  assert.match(context.sessionToken, /^[a-f0-9]{64}$/);
   assert.match(await (await fetch(url)).text(), /<title>md-kanban<\/title>/);
   app.child.kill('SIGTERM');
   assert.equal((await app.exit).code, 0);

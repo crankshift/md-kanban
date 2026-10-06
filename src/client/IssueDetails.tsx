@@ -3,8 +3,9 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Issue } from '../server/board.js';
 import { DependencyList } from './Dependencies';
+import { StatusControl, type StatusControls } from './StatusControl';
 
-export function IssueDetails({ issue, issues, onSelect, onClose }: {
+export function IssueDetails({ issue, issues, onSelect, onClose, onStatusChange, savingId }: StatusControls & {
   issue: Issue; issues: Issue[]; onSelect: (id: string) => void; onClose: () => void;
 }) {
   const panel = useRef<HTMLElement>(null);
@@ -21,6 +22,7 @@ export function IssueDetails({ issue, issues, onSelect, onClose }: {
       <dt>Location</dt><dd className="path">{issue.location}</dd>
       <dt>File</dt><dd className="path">{issue.path}</dd>
     </dl>
+    <StatusControl issue={issue} onStatusChange={onStatusChange} savingId={savingId} />
     {issue.diagnostics.length > 0 && <ul role="alert">{issue.diagnostics.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
     <DependencyList issue={issue} issues={issues} onSelect={onSelect} />
     <section className="markdown" aria-label="Issue Markdown and comments">

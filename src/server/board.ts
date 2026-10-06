@@ -19,6 +19,17 @@ export type IssueContext = Pick<Issue, 'path' | 'location' | 'feature' | 'contai
 export const boardSchema = z.object({ issues: z.array(issueSchema), warnings: z.array(z.string()) });
 export type BoardData = z.infer<typeof boardSchema>;
 
+export const issueWriteSchema = z.object({
+  path: z.string().min(1).max(4096).refine((path) =>
+    !/[\\\x00-\x1f:]/.test(path) && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..'),
+  'Use a root-relative issue path.'),
+  expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export const statusChangeSchema = issueWriteSchema.extend({
+  status: z.enum([...implementationStatuses, ...wayfindingStatuses]),
+}).strict();
+export type StatusChange = z.infer<typeof statusChangeSchema>;
+
 export function compareIssues(a: Issue, b: Issue): number {
   return a.feature.localeCompare(b.feature) ||
     (a.number ?? '').localeCompare(b.number ?? '', 'en', { numeric: true }) ||

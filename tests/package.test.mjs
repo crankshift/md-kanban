@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,12 +28,20 @@ test('installed tarball serves its own frontend against a separate folder and sh
     : join(installation, 'node_modules', '.bin', 'md-kanban');
   const app = await launch(t, cli, installation, [folder, '--no-open']);
   const url = await app.url;
-  const context = await fetch(`${url}/api/context`);
-  assert.deepEqual(await context.json(), { folder });
+  const context = await (await fetch(`${url}/api/context`)).json();
+  assert.equal(context.folder, folder);
+  assert.match(context.sessionToken, /^[a-f0-9]{64}$/);
   const board = await (await fetch(`${url}/api/issues`)).json();
   assert.equal(board.issues.length, 1);
   assert.equal(board.issues[0].title, 'Packaged issue');
   assert.equal(board.issues[0].workflow, 'implementation');
+  const saved = await fetch(`${url}/api/status`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': context.sessionToken, Origin: url },
+    body: JSON.stringify({ path: board.issues[0].path, expectedRevision: board.issues[0].revision, status: 'needs-info' }),
+  });
+  assert.equal(saved.status, 200);
+  assert.equal((await saved.json()).status, 'needs-info');
+  assert.equal(await readFile(join(folder, '01-example.md'), 'utf8'), '# 01: Packaged issue\n\nStatus: needs-info\n');
   const html = await (await fetch(url)).text();
   assert.match(html, /<title>md-kanban<\/title>/);
   assert.doesNotMatch(html, /PRIVATE_FOLDER_SENTINEL|main\.tsx|@vite\/client/);

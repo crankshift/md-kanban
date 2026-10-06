@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI, read-only boards, issue details, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to read real issues in separate implementation and wayfinding views.
+The CLI, boards, safe status changes, issue details, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -30,7 +30,13 @@ Dependencies resolve within the issue's feature/effort and location, across its 
 
 Dependency badges are advisory. A valid wayfinding prerequisite in `open` or `claimed` is an unresolved blocker; `resolved` stops blocking. Unknown prerequisite states remain visible. Implementation triage readiness never implies completion.
 
-This slice reads files only. Reload the page to discover external changes. Status changes, editing, automatic refresh, and supporting-document navigation follow in later slices.
+Drag a card to another column, or use **Change status** on its card or in the details panel with a keyboard or touch device. Changes save immediately to the original Markdown file, using only statuses in that issue's workflow. Dependencies do not prohibit transitions. Same-column moves do not save priority ordering. Only the status value changes; metadata style, whitespace, line endings, unknown sections, checkboxes, and comments stay intact.
+
+The board changes a card's column after the server confirms persistence. Pending controls are disabled, and errors are visibly reported. If another editor changes the issue after loading, the save is rejected and the board loads the latest issues for review before retrying. A lost save response also triggers a refresh; if the server cannot be reached, the board warns that displayed statuses may be outdated and directs you to reload. The local write API checks the app session, origin, selected-folder boundary, and expected file revision.
+
+Saves use temporary files and per-issue locks, shared by md-kanban processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.md-kanban-*.lock` may remain beside the issue. Stop all md-kanban processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
+
+Reload the page to discover external changes outside status-save recovery. Field/body editing, comments, creation, automatic refresh, and supporting-document navigation follow in later slices.
 
 ## Intended registry usage (unreleased)
 

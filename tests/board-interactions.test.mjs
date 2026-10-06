@@ -1,18 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
 import { act, createElement } from 'react';
 import { discoverIssues } from '../dist/server/discovery.js';
+import { startServer } from '../dist/server/server.js';
 import { fixture } from './fixtures.mjs';
 
-async function renderBoard(t, files) {
+async function renderBoard(t, files, editable = false) {
   const folder = await fixture(t, files);
   const data = await discoverIssues(folder);
   const dom = new JSDOM('<div id="root"></div>');
   const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  let sessionToken;
+  if (editable) {
+    const { server, url } = await startServer(folder);
+    t.after(() => new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); }));
+    const nativeFetch = globalThis.fetch;
+    sessionToken = (await (await nativeFetch(`${url}/api/context`)).json()).sessionToken;
+    globals.fetch = (path, options) => nativeFetch(new URL(path, url), options);
+  }
   const originals = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   Object.assign(globalThis, globals);
   const { createRoot } = await import('react-dom/client');
@@ -28,7 +37,7 @@ async function renderBoard(t, files) {
       else delete globalThis[key];
     }
   });
-  await act(async () => root.render(createElement(Board, { data })));
+  await act(async () => root.render(createElement(Board, { data, sessionToken })));
   return {
     folder, document: dom.window.document,
     click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => element.click()); },
@@ -39,6 +48,12 @@ async function renderBoard(t, files) {
         Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
         element.dispatchEvent(new dom.window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
       });
+    },
+    settled: async () => {
+      for (let attempt = 0; attempt < 100 && dom.window.document.querySelector('[aria-busy="true"]'); attempt++) {
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
+      }
+      assert.equal(dom.window.document.querySelector('[aria-busy="true"]'), null, 'status operation finishes');
     },
   };
 }
@@ -67,6 +82,125 @@ test('opens the correct issue by path and renders safe Markdown body and comment
   await ui.click(panel.querySelector('[aria-label="Close issue details"]'));
   assert.equal(ui.document.querySelector('[aria-label="Issue details"]'), null);
   for (const [path, content] of Object.entries(files)) assert.equal(await readFile(join(ui.folder, path), 'utf8'), content);
+});
+
+test('keyboard status changes persist immediately, preserve sorted cards and update details', async (t) => {
+  const ui = await renderBoard(t, {
+    'issues/10-later.md': '# 10: Later\nStatus: needs-info\n',
+    'issues/02-start.md': '# 02: Start\n**Status:** ready-for-agent\nBlocked by: 99\n\n## Comments\nKeep this.\n',
+  }, true);
+  const title = ui.document.querySelector('[data-issue-id="issues/02-start.md"]');
+  await ui.click(title);
+  const status = title.closest('.card').querySelector('select');
+  assert.ok(status, 'card provides a keyboard-accessible status selector');
+  assert.equal(status.options.length, 5, 'only the recognized workflow statuses are offered');
+  await ui.change(status, 'needs-info');
+  await ui.settled();
+  const column = ui.document.querySelector('[aria-labelledby="column-needs-info"]');
+  assert.deepEqual([...column.querySelectorAll('.card-title')].map((button) => button.textContent), ['Start', 'Later']);
+  assert.equal(await readFile(join(ui.folder, 'issues/02-start.md'), 'utf8'), '# 02: Start\n**Status:** needs-info\nBlocked by: 99\n\n## Comments\nKeep this.\n');
+  assert.match(ui.document.querySelector('.issue-context').textContent, /needs-info/);
+  assert.match(ui.document.querySelector('[role="status"]').textContent, /saved/);
+});
+
+test('dragging across columns persists despite advisory blockers, updates dependency indicators and ignores external drops and same-column ordering', async (t) => {
+  const ui = await renderBoard(t, {
+    'issues/01-prerequisite.md': '# 01: Prerequisite\nStatus: open\nBlocked by: 99\n',
+    'issues/02-next.md': '# 02: Next\nStatus: claimed\nBlocked by: 01\n',
+  }, true);
+  await ui.click([...ui.document.querySelectorAll('button')].find((button) => button.textContent === 'Wayfinding'));
+  const card = () => ui.document.querySelector('[data-issue-id="issues/01-prerequisite.md"]').closest('.card');
+  const drop = async (target, from = card()) => {
+    const transfer = { effectAllowed: '', dropEffect: '', setData() {} };
+    await act(async () => {
+      for (const [type, element] of [...(from ? [['dragstart', from]] : []), ['dragover', target], ['drop', target]]) {
+        const event = new ui.document.defaultView.Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'dataTransfer', { value: transfer });
+        element.dispatchEvent(event);
+      }
+    });
+    await ui.settled();
+  };
+  const original = '# 01: Prerequisite\nStatus: open\nBlocked by: 99\n';
+  const resolved = ui.document.querySelector('[aria-labelledby="column-resolved"]');
+  await drop(resolved, null);
+  assert.equal(await readFile(join(ui.folder, 'issues/01-prerequisite.md'), 'utf8'), original, 'external drag data cannot trigger a write');
+  await drop(ui.document.querySelector('[aria-labelledby="column-open"]'));
+  assert.equal(await readFile(join(ui.folder, 'issues/01-prerequisite.md'), 'utf8'), original);
+  assert.equal(ui.document.querySelector('[role="status"]'), null, 'same-column movement does not save ranks or status');
+  assert.match(ui.document.querySelector('[data-issue-id="issues/02-next.md"]').closest('.card').textContent, /1 unresolved blocker/);
+  await drop(resolved);
+  assert.equal(await readFile(join(ui.folder, 'issues/01-prerequisite.md'), 'utf8'), '# 01: Prerequisite\nStatus: resolved\nBlocked by: 99\n');
+  assert.equal(card().closest('.column'), resolved);
+  assert.doesNotMatch(ui.document.querySelector('[data-issue-id="issues/02-next.md"]').closest('.card').textContent, /unresolved blocker/);
+  assert.equal(card().querySelector('select').options.length, 3);
+});
+
+test('stale saves refresh the external status and preserve external comments, while disk failures stay visibly unsaved', async (t) => {
+  const ui = await renderBoard(t, { '01-change.md': '# 01: Change\nStatus: open\n\n## Comments\nOriginal.\n' }, true);
+  await ui.click([...ui.document.querySelectorAll('button')].find((button) => button.textContent === 'Wayfinding'));
+  const control = () => ui.document.querySelector('.card select');
+  const external = '# 01: Change\nStatus: claimed\n\n## Comments\nAgent comment.\n';
+  await writeFile(join(ui.folder, '01-change.md'), external);
+  await ui.change(control(), 'resolved');
+  await ui.settled();
+  assert.equal(control().value, 'claimed');
+  assert.equal(control().closest('.column').getAttribute('aria-labelledby'), 'column-claimed');
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Status was not saved.*changed on disk.*Latest issues loaded/);
+  assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), external);
+  await chmod(join(ui.folder, '01-change.md'), 0o444);
+  await ui.change(control(), 'resolved');
+  await ui.settled();
+  assert.equal(control().value, 'claimed');
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Status was not saved.*Check folder access/);
+  assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), external);
+  await chmod(join(ui.folder, '01-change.md'), 0o644);
+  await ui.change(control(), 'resolved');
+  await ui.settled();
+  assert.equal(control().value, 'resolved');
+  assert.match(await readFile(join(ui.folder, '01-change.md'), 'utf8'), /Agent comment/);
+});
+
+test('pending saves show the last persisted status and prevent overlapping UI writes', async (t) => {
+  const ui = await renderBoard(t, {
+    '01-first.md': '# 01: First\nStatus: ready-for-agent\n',
+    '02-second.md': '# 02: Second\nStatus: ready-for-agent\n',
+  }, true);
+  const transport = globalThis.fetch;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  globalThis.fetch = async (path, options) => { if (path === '/api/status') await gate; return transport(path, options); };
+  const controls = [...ui.document.querySelectorAll('.card select')];
+  await ui.change(controls[0], 'needs-info');
+  assert.equal(controls[0].value, 'ready-for-agent');
+  assert.ok(controls.every((control) => control.disabled));
+  assert.match(ui.document.querySelector('[role="status"]').textContent, /Saving status/);
+  await ui.change(controls[1], 'wontfix');
+  await act(async () => release());
+  await ui.settled();
+  assert.equal(await readFile(join(ui.folder, '01-first.md'), 'utf8'), '# 01: First\nStatus: needs-info\n');
+  assert.equal(await readFile(join(ui.folder, '02-second.md'), 'utf8'), '# 02: Second\nStatus: ready-for-agent\n');
+});
+
+test('a lost save response recovers the persisted status and a failed refresh gives an actionable outdated-state warning', async (t) => {
+  const ui = await renderBoard(t, { '01-change.md': '# 01: Change\nStatus: ready-for-agent\n' }, true);
+  const transport = globalThis.fetch;
+  globalThis.fetch = async (path, options) => {
+    const response = await transport(path, options);
+    if (path === '/api/status') throw new TypeError('Connection lost after save');
+    return response;
+  };
+  await ui.change(ui.document.querySelector('.card select'), 'needs-info');
+  await ui.settled();
+  assert.equal(ui.document.querySelector('.card select').value, 'needs-info');
+  assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Could not confirm.*Latest issues loaded/);
+  globalThis.fetch = async () => { throw new TypeError('Server stopped'); };
+  await ui.change(ui.document.querySelector('.card select'), 'wontfix');
+  await ui.settled();
+  assert.equal(ui.document.querySelector('.card select').value, 'needs-info');
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /displayed statuses may be outdated.*Reload the page/);
+  assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
 });
 
 test('search and both filters compose, and dependency navigation finds hidden targets without guessing ambiguous ones', async (t) => {

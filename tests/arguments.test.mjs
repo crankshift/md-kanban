@@ -20,7 +20,9 @@ test('CLI resolves omitted, dot, relative, absolute, and option-like folders fro
   ]) {
     const app = await launch(t, cli, cwd, ['--no-open', ...args]);
     const url = await app.url;
-    assert.deepEqual(await (await fetch(`${url}/api/context`)).json(), { folder: expected });
+    const context = await (await fetch(`${url}/api/context`)).json();
+    assert.equal(context.folder, expected);
+    assert.match(context.sessionToken, /^[a-f0-9]{64}$/);
     app.child.kill('SIGINT');
     assert.equal((await app.exit).code, 0);
   }

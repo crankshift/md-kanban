@@ -21,6 +21,10 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 .count { font-size: .75rem; color: #59656c; background: white; border-radius: 12px; padding: 2px 7px; }
 .card { background: white; border: 1px solid #d3ddd6; border-radius: 8px; padding: 12px; margin: 10px 0; cursor: pointer; }
 .card:hover { border-color: #376956; }
+.card[draggable="true"] { cursor: grab; }
+.status-control { display: grid; gap: 4px; margin-top: 12px; font-size: .8rem; font-weight: 600; }
+.status-control select { font: inherit; color: inherit; background: white; border: 1px solid #c3cec8; border-radius: 6px; padding: 7px; max-width: 100%; }
+select:disabled { cursor: wait; opacity: .6; }
 .card-title { border: 0; padding: 0; text-align: left; font-weight: 650; background: transparent; overflow-wrap: anywhere; max-width: 100%; }
 .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 18px 0; }
 .filters label { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; }
