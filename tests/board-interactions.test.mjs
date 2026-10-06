@@ -412,3 +412,100 @@ test('search and both filters compose, and dependency navigation finds hidden ta
   assert.equal(feature.value, '', 'changing location resets a feature from another location');
   assert.equal(cards().length, 5);
 });
+
+test('creation form previews Markdown, retains drafts on close and opens a searchable persisted issue', async (t) => {
+  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\nStatus: ready-for-agent\n' }, true);
+  const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => button.textContent === text);
+  await ui.click(button('New issue'));
+  await ui.settled();
+  await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Created example');
+  await ui.change(ui.document.querySelector('[aria-label="New issue body"]'), '## Outcome\n**Find this phrase**\n<script>bad()</script>');
+  await ui.click(button('Preview new issue'));
+  assert.equal(ui.document.querySelector('[aria-label="New issue preview"] strong').textContent, 'Find this phrase');
+  assert.equal(ui.document.querySelector('[aria-label="New issue preview"] script'), null);
+  await ui.click(button('Close creation'));
+  await ui.click(button('New issue'));
+  assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Created example');
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  assert.match(await readFile(join(ui.folder, 'issues/02-created-example.md'), 'utf8'), /Find this phrase/);
+  assert.ok(ui.document.querySelector('[data-issue-id="issues/02-created-example.md"]'));
+  assert.match(ui.document.querySelector('.issue-details').textContent, /Created example/);
+  await ui.change(ui.document.querySelector('input[type="search"]'), 'Find this phrase');
+  assert.equal(ui.document.querySelectorAll('.card').length, 1);
+});
+
+test('creation validation, conflicts, disk failures and lost responses retain content without false success', async (t) => {
+  const { readdir } = await import('node:fs/promises');
+  const original = '# 01: Existing\nStatus: ready-for-agent\n';
+  const ui = await renderBoard(t, { 'issues/01-existing.md': original }, true);
+  const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => button.textContent === text);
+  await ui.click(ui.document.querySelector('.card-title'));
+  await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Existing edit draft');
+  await ui.click(button('New issue'));
+  await ui.settled();
+  await ui.click(button('Create issue'));
+  assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /Too small|single-line/);
+  await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Retained new draft');
+  await ui.change(ui.document.querySelector('[aria-label="New issue body"]'), '## Outcome\nKeep my body.');
+  const event = new ui.document.defaultView.Event('beforeunload', { cancelable: true });
+  ui.document.defaultView.dispatchEvent(event);
+  assert.equal(event.defaultPrevented, true);
+  await writeFile(join(ui.folder, 'issues/01-existing.md'), original + '\nExternal body.\n');
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Retained new draft');
+  assert.equal(ui.document.querySelectorAll('.card').length, 1);
+  assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /changed on disk/);
+  await ui.click(button('Reload containers, keep draft'));
+  await ui.settled();
+  await chmod(join(ui.folder, 'issues'), 0o500);
+  t.after(() => chmod(join(ui.folder, 'issues'), 0o700).catch(() => {}));
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  assert.equal(ui.document.querySelector('[aria-label="New issue body"]').value, '## Outcome\nKeep my body.');
+  assert.equal(ui.document.querySelectorAll('.card').length, 1);
+  await chmod(join(ui.folder, 'issues'), 0o700);
+  const transport = globalThis.fetch;
+  globalThis.fetch = async (path, options) => {
+    const response = await transport(path, options);
+    if (path === '/api/create') throw new Error('Lost response');
+    return response;
+  };
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  globalThis.fetch = transport;
+  assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Retained new draft');
+  assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /Inspect the board for a saved issue/);
+  assert.equal(ui.document.querySelectorAll('.card').length, 2, 'refresh shows disk without claiming creation success');
+  assert.doesNotMatch(ui.document.body.textContent, /Retained new draft created\./);
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  assert.equal((await readdir(join(ui.folder, 'issues'))).filter((name) => name.endsWith('.md')).length, 2, 'stale retry cannot duplicate a lost-response creation');
+  await ui.click(button('Close creation'));
+  await ui.click(ui.document.querySelector('[data-issue-id="issues/01-existing.md"]'));
+  assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Existing edit draft');
+});
+
+test('creation selects wayfinding workflow/type, scoped dependencies and initial status', async (t) => {
+  const ui = await renderBoard(t, {
+    '.scratch/alpha/issues/01-existing.md': '# 01: Existing\nStatus: ready-for-agent\n',
+    'docs/beta/tickets/01-question.md': '# 01: Question\nStatus: open\nType: research\n',
+  }, true);
+  const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => button.textContent === text);
+  await ui.click(button('New issue'));
+  await ui.settled();
+  await ui.change(ui.document.querySelector('[aria-label="New issue container"]'), JSON.stringify(['docs/beta/tickets', 'wayfinding']));
+  assert.deepEqual([...ui.document.querySelector('[aria-label="New issue status"]').options].map((option) => option.value), ['open', 'claimed', 'resolved']);
+  assert.deepEqual([...ui.document.querySelector('[aria-label="New issue dependencies"]').options].map((option) => option.value), ['docs/beta/tickets/01-question.md']);
+  await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Investigate');
+  await ui.change(ui.document.querySelector('[aria-label="New issue type"]'), 'prototype');
+  await ui.change(ui.document.querySelector('[aria-label="New issue status"]'), 'claimed');
+  const dependencies = ui.document.querySelector('[aria-label="New issue dependencies"]');
+  await act(async () => { dependencies.options[0].selected = true; dependencies.dispatchEvent(new ui.document.defaultView.Event('change', { bubbles: true })); });
+  await ui.click(button('Create issue'));
+  await ui.settled();
+  const saved = await readFile(join(ui.folder, 'docs/beta/tickets/02-investigate.md'), 'utf8');
+  assert.match(saved, /Status: claimed\nType: prototype\nBlocked by: 01/);
+  assert.ok(ui.document.querySelector('[aria-label="wayfinding board"] [data-issue-id="docs/beta/tickets/02-investigate.md"]'));
+});

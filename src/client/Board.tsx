@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { boardSchema, issueSchema, compareIssues, implementationStatuses, wayfindingStatuses, type BoardData, type Workflow, type Issue } from '../server/board.js';
+import { boardSchema, issueSchema, compareIssues, implementationStatuses, wayfindingStatuses, type BoardData, type Workflow, type Issue, type IssueCreate } from '../server/board.js';
 import { resolveDependencies } from '../server/dependencies.js';
 import { DependencyIndicators } from './Dependencies';
+import { IssueCreator } from './IssueCreator';
 import { IssueDetails } from './IssueDetails';
 import { StatusControl, type StatusControls } from './StatusControl';
 import type { IssueEditorActions, IssueDraft } from './IssueEditor';
@@ -81,6 +82,7 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
   const saving = useRef(false);
   const [workflow, setWorkflow] = useState<Workflow>('implementation');
   const [filters, setFilters] = useState(emptyFilters);
+  const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const selected = data.issues.find((issue) => issue.id === selectedId);
@@ -108,6 +110,29 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       if (!response.ok) throw new Error('Could not reload issues. Your drafts are retained; check the local server.');
       setData(boardSchema.parse(await response.json()));
     } finally { setReloading(false); }
+  }
+  async function createNewIssue(request: IssueCreate) {
+    if (!sessionToken || saving.current) throw new Error('Wait for the current save or reload the local session. Draft retained.');
+    saving.current = true; setSavingId('create'); setResult(null);
+    try {
+      const response = await fetch('/api/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': sessionToken },
+        body: JSON.stringify(request),
+      });
+      const value: unknown = await response.json();
+      if (!response.ok) throw new Error(typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string' ? value.error : 'Creation rejected.');
+      const saved = issueSchema.parse(value);
+      if (!saved.revision || saved.workflow !== request.workflow || saved.container !== request.container || saved.title !== request.title || saved.status !== request.status) throw new Error('Cannot confirm creation.');
+      setData((current) => ({ ...current, issues: [...current.issues.filter((issue) => issue.id !== saved.id), saved].sort(compareIssues) }));
+      setWorkflow(saved.workflow); setFilters(emptyFilters); setSelectedId(saved.id);
+      setResult({ error: false, message: `#${saved.number}: ${saved.title} created.` });
+    } catch (error) {
+      let message = error instanceof Error ? error.message : 'Could not confirm creation.';
+      try { await reloadIssues(); message += ' Latest issues loaded.'; }
+      catch { message += ' Reload failed; displayed issues may be outdated.'; }
+      message += ' Draft retained. Inspect the board for a saved issue before reloading containers and retrying.';
+      setResult({ error: true, message }); throw new Error(message);
+    } finally { saving.current = false; setSavingId(null); }
   }
   async function persistIssue(base: Issue, endpoint: 'status' | 'edit' | 'comment', fields: Parameters<IssueEditorActions['onWrite']>[2] | { status: string }) {
     const statusMove = endpoint === 'status';
@@ -158,7 +183,7 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
     const issue = data.issues.find((candidate) => candidate.id === id);
     if (!issue) return;
     if (selectedId === null) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setSelectedId(id);
+    setCreating(false); setSelectedId(id);
     if (issue.workflow) setWorkflow(issue.workflow);
   }
   function closeDetails() {
@@ -188,6 +213,10 @@ export function Board({ data: initialData, sessionToken }: { data: BoardData; se
       </select></label>
       <button onClick={() => setFilters(emptyFilters)}>Clear search and filters</button>
     </div>
+    {sessionToken && <>
+      <button disabled={!!savingId || reloading} onClick={() => { setCreating(true); setSelectedId(null); }}>New issue</button>
+      <IssueCreator visible={creating} issues={data.issues} saving={!!savingId || reloading} onClose={() => setCreating(false)} onCreate={createNewIssue} onReload={reloadForUser} />
+    </>}
     {sessionToken && <p className="muted">Drag a card to another column or use Change status. Status changes save immediately; dependencies are advisory.</p>}
     {result && <p role={result.error ? 'alert' : 'status'}>{result.message}</p>}
     {Object.keys(drafts).length > 0 && <div className="draft-list"><p>Drafts retained in this tab. Save or copy them before leaving the page.</p>

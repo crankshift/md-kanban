@@ -42,6 +42,17 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(saved.status, 200);
   assert.equal((await saved.json()).status, 'needs-info');
   assert.equal(await readFile(join(folder, '01-example.md'), 'utf8'), '# 01: Packaged issue\n\nStatus: needs-info\n');
+  const [target] = await (await fetch(`${url}/api/creation-targets`)).json();
+  const created = await fetch(`${url}/api/create`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Md-Kanban-Session': context.sessionToken, Origin: url },
+    body: JSON.stringify({ container: target.container, expectedRevision: target.revision, workflow: target.workflow,
+      title: 'Created from package', status: 'needs-triage', body: '## Outcome\nPortable packaged creation.', dependencies: ['01-example.md'] }),
+  });
+  assert.equal(created.status, 201);
+  const newIssue = await created.json();
+  assert.equal(newIssue.path, '02-created-from-package.md');
+  assert.equal(await readFile(join(folder, newIssue.path), 'utf8'), newIssue.content);
+  assert.equal((await (await fetch(`${url}/api/issues`)).json()).issues.length, 2);
   const html = await (await fetch(url)).text();
   assert.match(html, /<title>md-kanban<\/title>/);
   assert.doesNotMatch(html, /PRIVATE_FOLDER_SENTINEL|main\.tsx|@vite\/client/);

@@ -15,7 +15,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 03 — Read issue details, dependencies, and search results
 - [x] 04 — Persist status changes without overwriting other edits
 - [x] 05 — Edit issues and append comments
-- [ ] 06 — Create issues in an existing feature or effort
+- [x] 06 — Create issues in an existing feature or effort
 - [ ] 07 — Refresh external changes while protecting drafts
 - [ ] 08 — Browse supporting documents and ADRs
 - [ ] 09 — Verify the complete v1 and prepare the local release candidate

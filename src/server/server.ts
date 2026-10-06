@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createIssue, creationTargets } from './creation.js';
 import { discoverIssues } from './discovery.js';
 import { statusChangeSchema, issueEditSchema, commentAppendSchema } from './board.js';
 import { patchIssueStatus } from './issues.js';
@@ -40,6 +41,7 @@ export async function startServer(folder: string): Promise<{ server: Server; url
   // Fail before announcing a URL if the build is missing.
   await readFile(resolve(assets, 'index.html'));
   const writer = await createIssueWriter(folder);
+  const creationRoot = await realpath(folder);
   const sessionToken = randomBytes(32).toString('hex');
   let url = '';
   const server = createServer(async (request, response) => {
@@ -56,6 +58,16 @@ export async function startServer(folder: string): Promise<{ server: Server; url
         return;
       }
       const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+      if (pathname === '/api/create' && request.method === 'POST') {
+        try {
+          if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before creating.');
+          json(response, 201, await createIssue(creationRoot, await readJson(request, 1024 * 1024) as Parameters<typeof createIssue>[1]));
+        } catch (error) {
+          const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Could not create issue.');
+          json(response, failure.status, { error: failure.message, code: failure.code });
+        }
+        return;
+      }
       if (['/api/edit', '/api/comment'].includes(pathname) && request.method === 'POST') {
         try {
           if (request.headers['x-md-kanban-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload the app before saving.');
@@ -89,12 +101,17 @@ export async function startServer(folder: string): Promise<{ server: Server; url
         return;
       }
       if (request.method !== 'GET' && request.method !== 'HEAD') {
-        response.writeHead(405, { Allow: ['/api/status', '/api/edit', '/api/comment'].includes(pathname) ? 'POST' : 'GET, HEAD' }).end();
+        response.writeHead(405, { Allow: ['/api/status', '/api/edit', '/api/comment', '/api/create'].includes(pathname) ? 'POST' : 'GET, HEAD' }).end();
         return;
       }
       if (pathname === '/api/context') {
         response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ folder, sessionToken }));
+        return;
+      }
+      if (pathname === '/api/creation-targets') {
+        try { json(response, 200, await creationTargets(creationRoot)); }
+        catch { json(response, 500, { error: 'Cannot read creation containers. Check folder access and reload.' }); }
         return;
       }
       if (pathname === '/api/issues') {

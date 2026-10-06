@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI, boards, safe status changes, issue editing and comments, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
+The CLI, boards, safe status changes, issue creation, editing and comments, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -42,7 +42,11 @@ The editable body spans the content after leading metadata and before `## Commen
 
 Unsaved fields and comment text stay with their issue when you close the panel or navigate, with draft buttons for returning to them. **Reload issues, keep draft** reads disk without discarding drafts. Rejected or unconfirmed saves retain drafts and try to load the latest version. Review the latest Markdown, then use **Recover draft on latest version** to carry only your changed fields onto that version before saving. A changed body replaces the whole editable body, so reconcile overlapping external body edits manually. After a lost comment response, inspect existing comments before recovery and retry to avoid adding the same comment again. **Discard draft** explicitly resets to the loaded version. Drafts live only in this browser tab; leaving the page prompts a warning, and you should save or copy them first. Removed/unsupported issues retain a copyable draft.
 
-Reload issues or the page to discover external changes outside save recovery. Creation, automatic refresh, and supporting-document navigation follow in later slices.
+Choose **New issue** to select an existing feature/effort folder and its recognized workflow, then enter a title, initial status, Markdown body, and optional dependencies from that scope. Wayfinding issues also have a Type selector. Preview uses the same safe Markdown rendering. **Create issue** allocates the next free number and follows an existing issue's filename separator, number padding, heading, metadata style, and line endings. The saved issue opens in details and immediately appears on its board and in search. Creation supports `.scratch`, supported `docs` containers, and directly selected issue folders. A folder must already contain a valid issue establishing the chosen workflow; empty or entirely unsupported folders have no guessed workflow.
+
+Creation never replaces an existing file. Occupied numbers, including unreadable files, directories, and symbolic links, are reserved across the discovered feature/effort scope. A changed container rejects the loaded creation draft. **Reload containers, keep draft** explicitly loads the latest snapshot for review and retry. Closing creation or navigating to existing issues retains its draft and existing editor drafts. After a lost creation response, inspect the refreshed board before retrying: the file may already exist. A retry using the old snapshot is rejected. **Discard creation draft** clears entered content explicitly; drafts live only in this tab.
+
+Reload issues or the page to discover external changes outside save recovery. Automatic refresh and supporting-document navigation follow in later slices.
 
 ## Intended registry usage (unreleased)
 

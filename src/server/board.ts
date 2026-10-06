@@ -48,3 +48,18 @@ export function compareIssues(a: Issue, b: Issue): number {
     (a.number ?? '').localeCompare(b.number ?? '', 'en', { numeric: true }) ||
     a.location.localeCompare(b.location) || a.path.localeCompare(b.path);
 }
+
+export const creationTargetSchema = z.object({
+  container: z.string(), feature: z.string(), location: z.string(),
+  workflow: z.enum(['implementation', 'wayfinding']), revision: issueWriteSchema.shape.expectedRevision,
+});
+export type CreationTarget = z.infer<typeof creationTargetSchema>;
+export const issueCreateSchema = z.object({
+  container: z.union([z.literal('.'), issueWriteSchema.shape.path]),
+  expectedRevision: issueWriteSchema.shape.expectedRevision,
+  workflow: z.enum(['implementation', 'wayfinding']), title: titleSchema,
+  status: z.enum([...implementationStatuses, ...wayfindingStatuses]),
+  type: wayfindingType.optional(), body: issueChangesSchema.shape.body.unwrap(),
+  dependencies: issueChangesSchema.shape.dependencies.unwrap(),
+}).strict();
+export type IssueCreate = z.infer<typeof issueCreateSchema>;
