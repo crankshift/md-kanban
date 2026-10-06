@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI and read-only boards are available from this checkout. Launch against a repository, tracker, feature, or issue folder to read real issues in separate implementation and wayfinding views.
+The CLI, read-only boards, issue details, dependency navigation, and search are available from this checkout. Launch against a repository, tracker, feature, or issue folder to read real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -24,7 +24,13 @@ Discovery includes `issues/` and `tickets/` containers under `.scratch` and `doc
 
 Numbered Markdown filenames or numbered top-level headings identify issue candidates. Plain and bold metadata keys are supported. Missing, unknown, conflicting, or malformed metadata appears in **Needs attention**, with diagnostics and expandable original Markdown. Specifications, maps, ADRs, generated assets, and dependency directories are excluded. Symbolic links inside the selected folder are skipped, including links to other folders inside it; explicitly selecting a symlinked folder uses its resolved target as the boundary.
 
-This slice reads files only. Reload the page to discover external changes. Issue details, dependency navigation, search/filters, editing, and automatic refresh follow in later slices.
+Click a card to open its Markdown and comments in the details panel, with status, feature, location, and file context. Embedded HTML is ignored, script URLs are disabled, and Markdown checkboxes are read-only. Search titles and body text (including comments), then combine the query with location and feature/effort filters. Features with the same name in different locations have separate options; filtering preserves feature/number order. Close the panel with its Close button or Escape.
+
+Dependencies resolve within the issue's feature/effort and location, across its `issues/` and `tickets/` containers. Comma-separated numbers, optionally followed by titles (for example `01 — Launch, 03: Review`), and `None` or `None (can start immediately)` are supported. Titles may contain commas; the next numbered reference starts a new dependency. Leading zeroes and an optional `#` do not affect number lookup. The original dependency text stays visible. Missing, ambiguous, and unsupported references show diagnostics; ambiguous numbers list the candidate paths without guessing a target. Click an unambiguous dependency to open its issue, even when the board filters hide it.
+
+Dependency badges are advisory. A valid wayfinding prerequisite in `open` or `claimed` is an unresolved blocker; `resolved` stops blocking. Unknown prerequisite states remain visible. Implementation triage readiness never implies completion.
+
+This slice reads files only. Reload the page to discover external changes. Status changes, editing, automatic refresh, and supporting-document navigation follow in later slices.
 
 ## Intended registry usage (unreleased)
 

@@ -17,7 +17,9 @@ test('CLI exposes real read-only boards and keeps Markdown files untouched', { t
   assert.equal(board.issues.length, 6);
   assert.equal(board.issues.filter((issue) => issue.workflow === 'implementation').length, 3);
   assert.equal(board.issues.filter((issue) => issue.workflow === 'wayfinding').length, 2);
-  assert.equal((await fetch(`${url}/api/issues`, { method: 'POST', body: '{}' })).status, 405);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    assert.equal((await fetch(`${url}/api/issues`, { method, body: '{}' })).status, 405);
+  }
   assert.equal((await fetch(`${url}/api/issues?path=../../private.md`)).status, 200);
   assert.equal((await fetch(`${url}/.scratch/alpha/issues/02-start.md`)).status, 404);
   for (const [path, content] of Object.entries(boardFiles)) assert.equal(await readFile(join(folder, path), 'utf8'), content);

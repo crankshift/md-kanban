@@ -37,3 +37,30 @@ test('renders each workflow with its own columns, real context, and readable att
   assert.doesNotMatch(attention, /<script>|<img /);
   assert.match(attention, /&lt;script&gt;/);
 });
+
+test('search, location and scoped feature filters compose while dependencies use the whole board', async (t) => {
+  const root = await fixture(t, {
+    '.scratch/alpha/issues/01-start.md': '# 01: Start\nStatus: ready-for-agent\n\n## Notes\nneedle in the body\n',
+    '.scratch/alpha/issues/02-next.md': '# 02: Needle follow-up\nStatus: ready-for-agent\nBlocked by: 01, 99\n',
+    '.scratch/beta/issues/01-other.md': '# 01: Needle beta\nStatus: ready-for-agent\n',
+    'docs/alpha/issues/01-other.md': '# 01: Needle docs\nStatus: ready-for-agent\n',
+  });
+  const data = await discoverIssues(root);
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
+  t.after(() => vite.close());
+  const { BoardView } = await vite.ssrLoadModule('/Board.tsx');
+  const render = (filters) => renderToStaticMarkup(createElement(BoardView, { data, workflow: 'implementation', filters }));
+  const all = render({ query: ' NEEDLE ', location: '', feature: '' });
+  assert.equal((all.match(/class="card"/g) ?? []).length, 4);
+  const location = render({ query: 'needle', location: '.scratch', feature: '' });
+  assert.equal((location.match(/class="card"/g) ?? []).length, 3);
+  const feature = render({ query: 'needle', location: '.scratch', feature: JSON.stringify(['.scratch', 'alpha']) });
+  assert.equal((feature.match(/class="card"/g) ?? []).length, 2);
+  assert.doesNotMatch(feature, /Needle beta|Needle docs/);
+  assert.ok(feature.indexOf('Start') < feature.indexOf('Needle follow-up'));
+  const titleOnly = render({ query: 'follow-up', location: '.scratch', feature: JSON.stringify(['.scratch', 'alpha']) });
+  assert.equal((titleOnly.match(/class="card"/g) ?? []).length, 1);
+  assert.match(titleOnly, /1 advisory dependency/);
+  assert.match(titleOnly, /1 dependency reference needs attention/);
+  assert.match(render({ query: 'absent', location: '', feature: '' }), /No implementation issues match/);
+});
