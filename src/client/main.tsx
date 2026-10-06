@@ -46,4 +46,6 @@ function App() {
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
-createRoot(root).render(<StrictMode><App /></StrictMode>);
+// PROTOTYPE — removed with the prototype. `pnpm prototype` builds in prototype mode; production builds drop this branch.
+if (import.meta.env.MODE === 'prototype') void import('./prototype/PrototypeApp').then(({ mountPrototype }) => mountPrototype(root));
+else createRoot(root).render(<StrictMode><App /></StrictMode>);
