@@ -8,7 +8,7 @@ Use `feat/md-kanban-v1` for every issue below. Stay in the existing checkout; do
 
 ## Sequence
 
-Issues 10–13 were added after a UI redesign, and issue 14 renames the package to `mdkanban` for registry publication. All of them run before 09, which verifies the finished v1. Work through the list in the order shown. Issue 15, publishing to npm, needs a human and is not part of this sequence.
+Issues 10–13 were added after a UI redesign, and issue 14 renames the package to `mdkanban` for registry publication. All of them run before 09, which verifies the finished v1. Work through the list in the order shown. Issue 15, publishing to npm, needs a human and is not part of this sequence. Issue 16 renames the package to `mdboard` after npm rejected `mdkanban` as too similar to `md-kanban`. Unlike the others, it runs on its own branch, `feat/rename-to-mdboard`, and merges into `main` through a squashed pull request before issue 15.
 
 The checkboxes below track implementation completion for this effort. They do not introduce a new ticket status or product lifecycle; the issues retain the repository's triage vocabulary.
 
@@ -26,6 +26,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 13 — Fix unrecognized issue candidates from Needs attention
 - [x] 14 — Rename the package and product to mdkanban
 - [x] 09 — Verify the complete v1 and prepare the local release candidate
+- [x] 16 — Rename the package and product to mdboard (own branch, after 09)
 
 ## Each implementation run
 

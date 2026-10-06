@@ -1,4 +1,4 @@
-# mdkanban
+# mdboard
 
 A Kanban board for Markdown tickets created with [Matt Pocock's agent skills](https://github.com/mattpocock/skills).
 
@@ -18,7 +18,7 @@ pnpm start --no-open ./
 
 Open the printed loopback URL. Omit `--no-open` to launch your default browser automatically; if opening fails, use the printed URL manually. Keep the terminal running, and press Ctrl+C to stop. An omitted folder defaults to the caller’s current directory. Relative folders resolve from that directory; invalid or inaccessible folders fail before startup.
 
-To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). This needs no registry access to mdkanban.
+To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). This needs no registry access to mdboard.
 
 Discovery includes `issues/` and `tickets/` containers under `.scratch` and `docs`, combining locations without duplicate paths. A directly selected issue folder can have any name. Cards show issue number, title, feature, and folder context, sorted by feature and number. Implementation columns describe triage readiness; wayfinding columns use `open`, `claimed`, and `resolved`.
 
@@ -34,7 +34,7 @@ Drag a card by its grip handle to another status column with a mouse, or hold th
 
 The board shows status moves, field saves, comments, and creation immediately while the server writes. Pending controls are disabled. A new issue displays **Creating…** without a number until the server confirms it. Failures roll the change back and report an error; stale writes also reload the latest issues for review. A lost response can follow a successful write, so inspect the refreshed Markdown before retrying, especially comments and creation. The local write API checks the app session, origin, selected-folder boundary, and expected file or container revision.
 
-Saves use temporary files and per-issue locks, shared by mdkanban processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.mdkanban-*.lock` may remain beside the issue. Stop all mdkanban processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
+Saves use temporary files and per-issue locks, shared by mdboard processes. Normal saves and failures clean these up. If a process is interrupted during a save, a `.mdboard-*.lock` may remain beside the issue. Stop all mdboard processes before removing that issue's lock and restarting; a blocked save reports this recovery path. External editors do not participate in these locks; see the [write boundary and limitations](CONTRIBUTING.md#write-boundary) for the final-check race and filesystem assumptions.
 
 Use the detail dialog's **Edit issue** form for title, status, dependencies, and Markdown body, then choose **Save issue**. These fields save together only when requested; the card's Change status control still saves immediately. Dependency options stay within the same feature/effort and location, across its containers, and exclude ambiguous numbers and the issue itself. Unchanged selections preserve original dependency text, including titles and no-dependency notes. **Clear dependencies** can remove unresolved references deliberately. The **Write** and **Preview** tabs share a fixed-height editor and use the same safe Markdown renderer as details.
 
@@ -74,21 +74,21 @@ Launching an issue folder directly exposes only documents inside that folder, so
 
 ## Intended registry usage (unreleased)
 
-**Not yet published:** mdkanban is not on the npm registry yet, so these commands do not work. They describe how you will run it once it is published; until then, use [the local app](#run-the-local-app-today).
+**Not yet published:** mdboard is not on the npm registry yet, so these commands do not work. They describe how you will run it once it is published; until then, use [the local app](#run-the-local-app-today).
 
 From your project or ticket folder, run either command:
 
 ```sh
-npx mdkanban
-pnpx mdkanban
+npx mdboard
+pnpx mdboard
 ```
 
 The board will open in your browser using the current folder. To open a different folder, pass its path:
 
 ```sh
-npx mdkanban ./docs/tickets
-pnpx mdkanban ./docs/tickets
-pnpx mdkanban ../another-project/.scratch
+npx mdboard ./docs/tickets
+pnpx mdboard ./docs/tickets
+pnpx mdboard ../another-project/.scratch
 ```
 
 Launching without a path is the same as passing `./`. Keep the terminal command running while you use the board.

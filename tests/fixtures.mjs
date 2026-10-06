@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 export async function fixture(t, files) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'mdkanban-fixture-')));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'mdboard-fixture-')));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const [path, text] of Object.entries(files)) {
     await mkdir(dirname(join(root, path)), { recursive: true });

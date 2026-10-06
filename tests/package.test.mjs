@@ -11,7 +11,7 @@ import { connectEvents, pause } from './events.mjs';
 const checkout = fileURLToPath(new URL('../', import.meta.url));
 
 test('installed tarball serves its own frontend against a separate folder and shuts down', { timeout: 60000 }, async (t) => {
-  const temporary = await realpath(await mkdtemp(join(tmpdir(), 'mdkanban-package-')));
+  const temporary = await realpath(await mkdtemp(join(tmpdir(), 'mdboard-package-')));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const installation = join(temporary, 'installation');
   const folder = join(temporary, 'selected issues');
@@ -21,19 +21,19 @@ test('installed tarball serves its own frontend against a separate folder and sh
   await writeFile(join(folder, 'index.html'), 'PRIVATE_FOLDER_SENTINEL');
   await writeFile(join(folder, '01-example.md'), '# 01: Packaged issue\n\nStatus: ready-for-agent\n');
   await writeFile(join(folder, 'spec.md'), '# Packaged specification\n\nStatus: proposed\n');
-  const tarball = join(temporary, 'mdkanban.tgz');
+  const tarball = join(temporary, 'mdboard.tgz');
   execFileSync('pnpm', ['pack', '--out', tarball], { cwd: checkout, stdio: 'pipe' });
   const { packageManager } = JSON.parse(await readFile(join(checkout, 'package.json'), 'utf8'));
   await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true, packageManager }));
   execFileSync('pnpm', ['add', '--offline', '--ignore-scripts', tarball], { cwd: installation, stdio: 'pipe' });
-  const packageRoot = join(installation, 'node_modules/mdkanban');
+  const packageRoot = join(installation, 'node_modules/mdboard');
   const packageFiles = await readdir(packageRoot, { recursive: true });
   assert.ok(!packageFiles.some((path) => /(?:^|[/\\])prototype(?:[/\\]|$)|prototype-demo/.test(path)), 'packed package contains no prototype files');
-  const packed = JSON.parse(await readFile(join(installation, 'node_modules/mdkanban/package.json'), 'utf8'));
+  const packed = JSON.parse(await readFile(join(installation, 'node_modules/mdboard/package.json'), 'utf8'));
   assert.deepEqual(Object.keys(packed.dependencies).sort(), ['open', 'zod'], 'client packages are bundled build dependencies');
   const cli = process.platform === 'win32'
-    ? join(installation, 'node_modules', 'mdkanban', 'dist', 'server', 'cli.js')
-    : join(installation, 'node_modules', '.bin', 'mdkanban');
+    ? join(installation, 'node_modules', 'mdboard', 'dist', 'server', 'cli.js')
+    : join(installation, 'node_modules', '.bin', 'mdboard');
   const app = await launch(t, cli, installation, [folder, '--no-open']);
   const url = await app.url;
   const context = await (await fetch(`${url}/api/context`)).json();
@@ -50,7 +50,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   const escape = new URLSearchParams({ from: '01-example.md', href: '../outside.md' });
   assert.equal((await (await fetch(`${url}/api/document-link?${escape}`)).json()).status, 'unavailable');
   const saved = await fetch(`${url}/api/status`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': context.sessionToken, Origin: url },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': context.sessionToken, Origin: url },
     body: JSON.stringify({ path: board.issues[0].path, expectedRevision: board.issues[0].revision, status: 'needs-info' }),
   });
   assert.equal(saved.status, 200);
@@ -58,7 +58,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(await readFile(join(folder, '01-example.md'), 'utf8'), '# 01: Packaged issue\n\nStatus: needs-info\n');
   const [target] = await (await fetch(`${url}/api/creation-targets`)).json();
   const created = await fetch(`${url}/api/create`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': context.sessionToken, Origin: url },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': context.sessionToken, Origin: url },
     body: JSON.stringify({ container: target.container, expectedRevision: target.revision, workflow: target.workflow,
       title: 'Created from package', status: 'needs-triage', body: '## Outcome\nPortable packaged creation.', dependencies: ['01-example.md'] }),
   });
@@ -75,7 +75,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   await stream.waitForChanges(echoes + 1);
   assert.equal((await (await fetch(`${url}/api/issues`)).json()).issues.length, 3);
   const html = await (await fetch(url)).text();
-  assert.match(html, /<title>mdkanban<\/title>/);
+  assert.match(html, /<title>mdboard<\/title>/);
   assert.doesNotMatch(html, /PRIVATE_FOLDER_SENTINEL|main\.tsx|@vite\/client/);
   const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)];
   assert.ok(assets.length >= 2, 'Built JS and CSS are present');
@@ -89,7 +89,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal((await fetch(`${url}/package.json`)).status, 404);
   const deep = await fetch(`${url}/board/alpha?issue=01-example.md`);
   assert.equal(deep.status, 200);
-  assert.match(await deep.text(), /<title>mdkanban<\/title>/);
+  assert.match(await deep.text(), /<title>mdboard<\/title>/);
   assert.equal((await fetch(`${url}/api/unknown`)).status, 404);
   assert.equal((await fetch(`${url}/assets/missing.js`)).status, 404);
   assert.equal((await fetch(`${url}/api/context`, { method: 'POST' })).status, 405);
