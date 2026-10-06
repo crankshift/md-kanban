@@ -26,7 +26,7 @@ export async function creationTargets(folder: string): Promise<CreationTarget[]>
       const path = join(root, directory);
       await safeDirectory(root, path);
       const stat = await lstat(path);
-      occupancy.push([directory, stat.dev, stat.ino, (await readdir(path)).filter((name) => !name.startsWith('.mdkanban-')).sort()]);
+      occupancy.push([directory, stat.dev, stat.ino, (await readdir(path)).filter((name) => !name.startsWith('.mdboard-')).sort()]);
     }
     const revision = createHash('sha256').update(JSON.stringify({ occupancy,
       issues: scoped.map((candidate) => [candidate.id, candidate.revision, candidate.diagnostics]) })).digest('hex');
@@ -82,10 +82,10 @@ export async function createIssue(folder: string, input: IssueCreate): Promise<I
     const directories = [...new Set(initialBoard.issues.filter((issue) => sameScope(context, issue)).map((issue) => join(root, issue.container)))].sort();
     for (const path of directories) {
       await safeDirectory(root, path);
-      const lockPath = join(path, '.mdkanban-create.lock');
+      const lockPath = join(path, '.mdboard-create.lock');
       try { const handle = await open(lockPath, 'wx', 0o600); locks.push(lockPath); await handle.close(); }
       catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'EEXIST') throw new WriteError(409, 'write_in_progress', 'Another creation is in progress. Reload and review before retrying. If interrupted, stop all mdkanban processes before removing .mdkanban-create.lock beside the issues.');
+        if (error instanceof Error && 'code' in error && error.code === 'EEXIST') throw new WriteError(409, 'write_in_progress', 'Another creation is in progress. Reload and review before retrying. If interrupted, stop all mdboard processes before removing .mdboard-create.lock beside the issues.');
         throw error;
       }
     }
@@ -125,7 +125,7 @@ export async function createIssue(folder: string, input: IssueCreate): Promise<I
     }
     catch (error) { throw new WriteError(422, 'invalid_change', error instanceof Error ? error.message : 'Invalid issue content.'); }
     if (saved.workflow !== request.workflow || saved.title !== request.title) throw new WriteError(422, 'invalid_change', 'The body would change issue metadata. Start the Markdown body with a section heading or ordinary prose.');
-    temporary = join(directory, `.mdkanban-${randomUUID()}.tmp`);
+    temporary = join(directory, `.mdboard-${randomUUID()}.tmp`);
     const handle = await open(temporary, 'wx', 0o600);
     try { await handle.writeFile(saved.content!, 'utf8'); await handle.sync(); }
     finally { await handle.close(); }

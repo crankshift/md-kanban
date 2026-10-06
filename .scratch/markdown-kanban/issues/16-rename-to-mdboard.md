@@ -45,3 +45,26 @@ Implement this on its own branch, `feat/rename-to-mdboard`, created from `main`.
 - Renaming the GitHub repository.
 
 ## Comments
+
+### Implementation result — 2026-10-06
+
+- Renamed the package and bin to `mdboard` in `package.json`; the version stays `0.1.0`. `repository`, `homepage`, `bugs`, `author`, and `keywords` are unchanged, so the GitHub name stays `md-kanban`.
+- Renamed the CLI usage and log lines, error messages that name the app, the page `<title>`, and the navigator heading. Hidden files are now `.mdboard-*` (save temporaries, per-issue locks, the creation lock), including the watcher and creation filters. The session header is `X-Mdboard-Session` on the server and the client. There is no compatibility handling for the old names.
+- Renamed the temporary fixture prefixes and the references in the tests. Updated the README, CONTRIBUTING, and the product name and CLI lines in `spec.md`. The registry commands are `npx mdboard` and `pnpx mdboard`, still marked as unreleased.
+- Added ADR 0007 (publish as mdboard) and marked ADR 0006 as superseded by it with a `Status:` line. The ADR 0006 file keeps its name as a historical record.
+- Folded the rename into the existing `0.1.0` section of `CHANGELOG.md`, since 0.1.0 was never published. The `mdkanban` line now names `mdboard`.
+- Tickets 01–14 and their saved prompts are unchanged, as are tickets 09 and 15. The implementation workflow checkbox for this ticket is checked.
+- Verification:
+  - `pnpm typecheck`, `pnpm build`, and `pnpm test` (122 tests) passed.
+  - `pnpm pack` produced `mdboard-0.1.0.tgz` with bin `mdboard`. Its contents are `package.json`, `README.md`, `LICENSE`, `dist/server/*.js`, and `dist/client`. None of it mentions `mdkanban`.
+  - An offline `pnpm add` of the tarball into a scratch project outside the checkout installed `node_modules/.bin/mdboard`. `mdboard --help` printed `Usage: mdboard ...`, and a launch against a portable fixture served `<title>mdboard</title>`.
+  - A clean local clone of the commit, after `pnpm install --frozen-lockfile`, ran `npm publish --dry-run --access public` and reported `mdboard@0.1.0` with tag `latest` (35 files, 653.8 kB). Nothing was uploaded.
+  - A grep finds no `mdkanban` in `src`, `tests`, `README.md`, `CONTRIBUTING.md`, or `package.json`. `md-kanban` remains only in the GitHub URLs in `package.json` and CONTRIBUTING.
+  - The diff of `src`, `tests`, and `package.json` is symmetric once `mdkanban` and `mdboard` are normalized, so there are no behavior changes.
+  - Tests cover rejection of writes with a missing or wrong `X-Mdboard-Session` header, and creation of `.mdboard-create.lock` and the status lock under the new prefix.
+- Limitations:
+  - The registry has not accepted `mdboard`. `npm publish --dry-run` does not contact the registry's name-similarity check, so only the real publish proves the name works.
+  - The branch is not pushed, no pull request is open, and the work is not merged. The acceptance criterion about the squashed pull request is pending the user.
+- Next ticket (15):
+  - After the squash merge, `v0.1.0` must move to the squash commit. The old tag on `2172e20` names `mdkanban`; delete it locally and on `origin`, then retag.
+  - Check that `npm view mdboard` returns a 404 or only an unpublished record, then publish from a clean checkout of the tag, then remove the README's "unreleased" wording.

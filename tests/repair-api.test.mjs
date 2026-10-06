@@ -13,7 +13,7 @@ async function appFor(t, files) {
   return { folder,
     load: async () => (await (await fetch(`${app.url}/api/issues`)).json()).issues,
     send: (issue, fields, headers = {}) => fetch(`${app.url}/api/repair`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken, ...headers },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': sessionToken, ...headers },
       body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, ...fields }),
     }),
   };
@@ -88,7 +88,7 @@ test('both repair modes reject stale revisions, session/origin violations, inval
   for (const fields of [{ changes: {} }, { changes: { status: 'unknown' } }, { changes: { type: 'odd' } }, { changes: { extra: true } }, { content: 'a\0b' }, { content: 'x', changes: { status: 'open' } }]) {
     assert.equal((await app.send(issue, fields)).status, 400);
   }
-  assert.equal((await app.send(issue, { changes: { status: 'open' } }, { 'X-Mdkanban-Session': 'wrong' })).status, 403);
+  assert.equal((await app.send(issue, { changes: { status: 'open' } }, { 'X-Mdboard-Session': 'wrong' })).status, 403);
   assert.equal((await app.send(issue, { content: 'x' }, { Origin: 'https://example.com' })).status, 403);
   assert.equal((await app.send({ ...issue, path: 'spec.md' }, { content: 'x' })).status, 404);
   assert.equal((await app.send({ ...issue, path: '../outside.md' }, { content: 'x' })).status, 400);

@@ -26,7 +26,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 13 — Fix unrecognized issue candidates from Needs attention
 - [x] 14 — Rename the package and product to mdkanban
 - [x] 09 — Verify the complete v1 and prepare the local release candidate
-- [ ] 16 — Rename the package and product to mdboard (own branch, after 09)
+- [x] 16 — Rename the package and product to mdboard (own branch, after 09)
 
 ## Each implementation run
 

@@ -15,7 +15,7 @@ async function appFor(t, files) {
   t.after(() => new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); }));
   const context = await (await fetch(`${url}/api/context`)).json();
   const board = await (await fetch(`${url}/api/issues`)).json();
-  const headers = { 'Content-Type': 'application/json', 'X-Mdkanban-Session': context.sessionToken, Origin: url };
+  const headers = { 'Content-Type': 'application/json', 'X-Mdboard-Session': context.sessionToken, Origin: url };
   const move = (issue, status, options = {}) => fetch(`${url}/api/status`, {
     method: 'POST', headers, body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, status }), ...options,
   });
@@ -84,20 +84,20 @@ test('separate CLI processes share the write boundary and abandoned locks have e
   const contexts = await Promise.all(urls.map(async (url) => (await fetch(`${url}/api/context`)).json()));
   const issue = (await (await fetch(`${urls[0]}/api/issues`)).json()).issues[0];
   const responses = await Promise.all(urls.map((url, index) => fetch(`${url}/api/status`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': contexts[index].sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': contexts[index].sessionToken },
     body: JSON.stringify({ path: issue.path, expectedRevision: issue.revision, status: index === 0 ? 'claimed' : 'resolved' }),
   })));
   assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
   const winner = await responses.find((response) => response.status === 200).json();
   assert.equal(await readFile(join(folder, issue.path), 'utf8'), winner.content);
-  const lockName = `.mdkanban-${createHash('sha256').update('01-change.md').digest('hex')}.lock`;
+  const lockName = `.mdboard-${createHash('sha256').update('01-change.md').digest('hex')}.lock`;
   await writeFile(join(folder, lockName), '');
   const locked = await fetch(`${urls[0]}/api/status`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': contexts[0].sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': contexts[0].sessionToken },
     body: JSON.stringify({ path: winner.path, expectedRevision: winner.revision, status: 'open' }),
   });
   assert.equal(locked.status, 409);
-  assert.match((await locked.json()).error, /stop all mdkanban processes.*remove/);
+  assert.match((await locked.json()).error, /stop all mdboard processes.*remove/);
   assert.equal(await readFile(join(folder, issue.path), 'utf8'), winner.content);
   for (const app of apps) { app.child.kill('SIGTERM'); assert.equal((await app.exit).code, 0); }
 });
@@ -135,8 +135,8 @@ test('only the correct local host, origin and app session can write or retrieve 
   const issue = app.board.issues[0];
   const second = await appFor(t, { '01-other.md': '# 01: Other\nStatus: open\n' });
   for (const headers of [
-    { ...app.headers, 'X-Mdkanban-Session': '' },
-    { ...app.headers, 'X-Mdkanban-Session': second.headers['X-Mdkanban-Session'] },
+    { ...app.headers, 'X-Mdboard-Session': '' },
+    { ...app.headers, 'X-Mdboard-Session': second.headers['X-Mdboard-Session'] },
     { ...app.headers, Origin: 'https://example.org' },
     { ...app.headers, Origin: 'null' },
     { ...app.headers, 'Sec-Fetch-Site': 'cross-site' },
@@ -145,13 +145,13 @@ test('only the correct local host, origin and app session can write or retrieve 
   for (const headers of [{ Origin: 'https://example.org' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
     const response = await fetch(`${app.url}/api/context`, { headers });
     assert.equal(response.status, 403);
-    assert.doesNotMatch(await response.text(), new RegExp(app.headers['X-Mdkanban-Session']));
+    assert.doesNotMatch(await response.text(), new RegExp(app.headers['X-Mdboard-Session']));
     assert.equal(response.headers.get('Access-Control-Allow-Origin'), null);
   }
   assert.equal((await withHost(`${app.url}/api/status`, 'POST', JSON.stringify({ path: issue.path, expectedRevision: issue.revision, status: 'claimed' }), app.headers)).status, 403);
   const rebinding = await withHost(`${app.url}/api/context`, 'GET', undefined, {});
   assert.equal(rebinding.status, 403);
-  assert.doesNotMatch(rebinding.text, new RegExp(app.headers['X-Mdkanban-Session']));
+  assert.doesNotMatch(rebinding.text, new RegExp(app.headers['X-Mdboard-Session']));
   assert.equal((await fetch(`${app.url}/api/status`, { method: 'OPTIONS', headers: { Origin: 'https://example.org' } })).status, 403);
   assert.equal(await readFile(join(app.folder, issue.path), 'utf8'), issue.content);
 });

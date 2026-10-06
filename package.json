@@ -1,5 +1,5 @@
 {
-  "name": "mdkanban",
+  "name": "mdboard",
   "version": "0.1.0",
   "description": "A local browser app for Markdown issues",
   "author": "crankshift",
@@ -29,7 +29,7 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "mdkanban": "dist/server/cli.js"
+    "mdboard": "dist/server/cli.js"
   },
   "files": [
     "dist",

@@ -10,14 +10,14 @@ import { launch } from './helpers.mjs';
 const cli = fileURLToPath(new URL('../dist/server/cli.js', import.meta.url));
 
 test('CLI selects caller cwd and serves the app from package assets', { timeout: 10000 }, async (t) => {
-  const folder = await realpath(await mkdtemp(join(tmpdir(), 'mdkanban-launch-')));
+  const folder = await realpath(await mkdtemp(join(tmpdir(), 'mdboard-launch-')));
   t.after(() => rm(folder, { recursive: true, force: true }));
   const app = await launch(t, cli, folder, ['--no-open']);
   const url = await app.url;
   const context = await (await fetch(`${url}/api/context`)).json();
   assert.equal(context.folder, folder);
   assert.match(context.sessionToken, /^[a-f0-9]{64}$/);
-  assert.match(await (await fetch(url)).text(), /<title>mdkanban<\/title>/);
+  assert.match(await (await fetch(url)).text(), /<title>mdboard<\/title>/);
   app.child.kill('SIGTERM');
   assert.equal((await app.exit).code, 0);
   await assert.rejects(fetch(url));

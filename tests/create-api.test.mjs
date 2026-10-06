@@ -12,7 +12,7 @@ async function appFor(t, files) {
   const { sessionToken } = await (await fetch(`${url}/api/context`)).json();
   const targets = async () => (await (await fetch(`${url}/api/creation-targets`)).json());
   const send = (target, fields = {}, headers = {}) => fetch(`${url}/api/create`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken, ...headers },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': sessionToken, ...headers },
     body: JSON.stringify({ container: target.container, workflow: target.workflow, expectedRevision: target.revision,
       title: 'New issue', status: target.workflow === 'implementation' ? 'needs-triage' : 'open', body: '## Outcome\nPortable body.', dependencies: [], ...fields }),
   });
@@ -66,7 +66,7 @@ test('stale snapshots and concurrent creations never overwrite or silently both 
   const { sessionToken } = await (await fetch(`${other.url}/api/context`)).json();
   const [next] = await app.targets();
   const concurrent = await Promise.all([app.send(next), fetch(`${other.url}/api/create`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': sessionToken },
     body: JSON.stringify({ container: next.container, workflow: next.workflow, expectedRevision: next.revision, title: 'Other', status: 'needs-info', body: '', dependencies: [] }),
   })]);
   assert.deepEqual(concurrent.map((response) => response.status).sort(), [201, 409]);
@@ -108,7 +108,7 @@ test('invalid paths, metadata, dependencies and session/origin requests leave th
     const response = await app.send(target, fields);
     assert.ok(response.status >= 400, JSON.stringify(fields));
   }
-  assert.equal((await app.send(target, {}, { 'X-Mdkanban-Session': '' })).status, 403);
+  assert.equal((await app.send(target, {}, { 'X-Mdboard-Session': '' })).status, 403);
   assert.equal((await app.send(target, {}, { Origin: 'https://example.org' })).status, 403);
   assert.equal((await app.send(target, {}, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
   assert.deepEqual(await readdir(join(app.folder, '.scratch/alpha/issues')), ['01-existing.md']);
@@ -124,9 +124,9 @@ test('disk failures and abandoned locks leave no new issue and allow an explicit
   assert.equal((await app.send(target)).status, 500);
   await chmod(directory, 0o700);
   assert.deepEqual(await readdir(directory), ['1-existing.md']);
-  await writeFile(join(directory, '.mdkanban-create.lock'), 'Interrupted');
+  await writeFile(join(directory, '.mdboard-create.lock'), 'Interrupted');
   assert.equal((await app.send(target)).status, 409);
-  await unlink(join(directory, '.mdkanban-create.lock'));
+  await unlink(join(directory, '.mdboard-create.lock'));
   const response = await app.send(target);
   assert.equal(response.status, 201);
   assert.equal((await response.json()).path, 'issues/2-new-issue.md');
@@ -142,7 +142,7 @@ test('overlapping root launches serialize allocation, and direct issue-folder lo
   const [target] = await app.targets();
   const [directTarget] = await (await fetch(`${direct.url}/api/creation-targets`)).json();
   const responses = await Promise.all([app.send(target), fetch(`${direct.url}/api/create`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdkanban-Session': sessionToken },
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': sessionToken },
     body: JSON.stringify({ container: '.', workflow: directTarget.workflow, expectedRevision: directTarget.revision, title: 'Different title', status: 'needs-info', body: '', dependencies: [] }),
   })]);
   assert.deepEqual(responses.map((response) => response.status).sort(), [201, 409]);
