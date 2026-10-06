@@ -11,6 +11,7 @@ Issues and specs for this repo live as Markdown files in `.scratch/`.
 - Triage state: a `Status:` line near the top of each issue file,
   using the role strings in `triage-labels.md`.
 - Comments and conversation history: append under `## Comments`.
+- Every implemented ticket updates `CHANGELOG.md` under `Unreleased` in the same focused commit. Describe user-visible changes; record checks, limitations, and handoff context in the ticket comments.
 
 ## Publish to the issue tracker
 

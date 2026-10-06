@@ -1,0 +1,55 @@
+# 11: Rebuild the interface with Chakra UI as a navigator board
+
+Status: ready-for-agent
+Blocked by: 10
+
+## Outcome
+
+The board looks and works like the approved prototype (variant B): a collapsible navigator sidebar, columns or a list in the main area, issue and document details in a dialog over the board, and a command palette.
+
+## Prototype reference
+
+The prototype is the primary source for layout, copy, and interaction. It was approved with variant B and the orange palette. Run it with `pnpm prototype` before this ticket removes it; afterwards read it from history at commit `3a6620a` (`src/client/prototype/VariantB.tsx`, `shared.tsx`, `theme.ts`, `data.ts`). Rewrite it to production quality instead of promoting prototype code directly.
+
+## Scope
+
+- Set up Chakra UI v3 following its current `llms.txt` documentation: provider, colour mode through next-themes (light and dark, defaulting to the system setting), toaster, and a theme with an orange accent, neutral surfaces, compact density, IBM Plex Sans for text, and IBM Plex Mono only for ticket numbers and file paths. Remove `style.css`.
+- Sidebar: product name and selected folder, a "Jump to…" button for the command palette, workflows with counts, Needs attention with a count, locations with their features or efforts, and supporting documents grouped as specifications, wayfinding maps, and decisions, plus live status and the colour-mode toggle. A button and the `[` key collapse it to an icon rail that keeps workflows, Needs attention, documents, search, live status, and colour mode reachable with tooltips.
+- Main area: the current scope as the heading, a text filter, a Board/List toggle kept in the URL, and New issue. Board columns use full width; cards show the ticket number in a gutter, the title, the feature (when not already scoped), dependency badges, and a status menu. The list view groups rows by status in collapsible sections.
+- Details open in a centered dialog with the issue content beside a metadata column (status, feature or effort, location, file, dependencies). Followed links stack inside the dialog with Back and a breadcrumb. Supporting documents render read-only in the same dialog.
+- Command palette (⌘K or Ctrl+K) searches issues and documents and opens the chosen one.
+- Every value picker is a Chakra combobox with type-to-filter; no native select menus remain. Markdown editing uses Write and Preview tabs that share one fixed-height frame, so switching never changes the dialog's size.
+- Create issues in a dialog with feature or effort, status, title, and Markdown body.
+- Feedback: successes as toasts; failures as persistent toasts plus an inline message where the user is working; live, offline, and outdated state as a status indicator; empty states that explain what to do. Remove the old help text and banner stack.
+- Use "Feature" in implementation views and "Effort" in wayfinding views, matching `GLOSSARY.md`.
+- Keep the existing status-change controls working; drag and drop arrives in ticket 12. The Needs attention view lists unrecognized issue candidates and opens them read-only; fixing them arrives in ticket 13.
+- Make roles and accessible names the test contract; replace class-name selectors in tests.
+- Remove the prototype: `src/client/prototype/`, `scripts/prototype-demo.mjs`, the `prototype` script, the prototype branch in `main.tsx`, and the prototype alias in `vite.config.ts`.
+
+## Acceptance criteria
+
+- The interface matches the approved prototype's structure in light and dark mode, and the main journeys work with keyboard only, with visible focus.
+- Opening an issue or document never narrows the board columns.
+- Collapsing and expanding the sidebar works by button and `[`; the rail keeps every destination reachable.
+- Board and List show the same filtered issues, and the chosen view survives a reload.
+- No native `<select>` element is rendered anywhere in the app.
+- Switching between Write and Preview does not change the editor's height.
+- All behavior from tickets 01–10 still works and its tests pass using role and label queries, along with type checking and the production build.
+- The packed package contains no prototype files, and the production bundle contains no prototype code.
+
+## Comments
+
+### Implementation result — 2026-10-06
+
+- Rebuilt the production interface around approved variant B and its orange palette, studied from the prototype and commit `3a6620a`. The Chakra v3 system supplies neutral surfaces, compact cards with number gutters and status menus, IBM Plex Sans, and IBM Plex Mono for numbers/paths. next-themes follows the system by default and supports light/dark overrides. Removed `style.css`, every prototype source, the demo script, prototype package script, entry-point branch, and Vite alias.
+- Added the navigator with workflow/attention counts, locations and their features or efforts, grouped specifications/maps/decisions, live/offline/outdated status, and colour mode. Its button and `[` toggle a URL-backed icon rail; typing brackets does not collapse it. Rail destinations have tooltips, including documents/scopes, search, connection state, and colour mode. Main search and scope filters compose with URL-backed Board/List views; List groups compact rows in collapsible status sections.
+- Issues, creation, and read-only documents open in centered, focus-trapped Chakra dialogs over the full-width board. Issue content sits beside status, feature/effort, location, file, and dependency metadata. Followed links retain router Back history and path breadcrumbs. Jump to… / Ctrl+K / ⌘K searches issue numbers/titles/content and document titles/paths; keyboard result navigation and Enter open the selected entry. Needs attention candidates retain diagnostics and original readable content without repair controls; an existing draft remains recoverable if its file becomes malformed or disappears.
+- Replaced every native select with a searchable Chakra combobox, including statuses, scopes, creation type, and multiple dependencies. Write/Preview tabs share one fixed-height frame. Confirmed writes produce success toasts; rejected writes, failed document reads, and unavailable links produce persistent, dismissible error toasts and inline feedback. Reused the existing query mutations, file/container revisions, authenticated API, preservation rules, advisory dependencies, and disk-write boundaries; no new endpoint, unprotected mutation, application Context, or global store was added.
+- Keyboard browser verification exposed a false discard prompt after successful creation: React's queued dirty reset could leave the navigation blocker reading the old flag. Observed a new public UI regression fail, then made the navigation guard a synchronous ref while retaining all actual draft values in their mounted forms. Successful creation now opens saved details without a discard prompt; unsaved Back/close/navigation still protects drafts. Also composed the colour-mode button's click handler with the tooltip's injected handler, regression-tested so the tooltip cannot suppress theme changes.
+- Updated README, CONTRIBUTING, and Unreleased CHANGELOG behavior. Tests now use roles/accessible labels and names; issue-opening names include root-relative paths to distinguish scoped identities. The shared jsdom harness mounts the production Chakra/query/router providers, supplies missing browser primitives, and chooses actual combobox options by their accessible text. Added navigator/rail/shortcut, filtered/restored List, command/document/attention, colour-mode, and saved-creation navigation coverage. Packed-package assertions exclude prototype files and prototype bundle entry points.
+- Documentation: consulted current official [Chakra llms.txt](https://chakra-ui.com/llms.txt) / [complete v3 documentation](https://chakra-ui.com/llms-full.txt), with Context7 resolution and a combobox lookup. Verified controlled-input/selection details against the installed v3 types. The existing React/TypeScript/Vite/React Hook Form/query/router/nuqs stack and runtime dependency boundary remain in place.
+- Verification: final `pnpm check` passed type checking, the production build, and 105 tests (104 passed; one macOS-only browser-opener check skipped on Linux), including real disk/API preservation and stale writes, live refresh, draft/conflict/recovery, CLI launch/shutdown, and offline installed-tarball checks. Targeted UI files and type checking ran throughout. The first full run found a navigator-count test still comparing incidental text; migrated it to the accessible name and reran successfully. The final run includes the creation guard and tooltip-click regressions. Working/staged whitespace checks passed. Fixtures use portable temporary folders and public-safe content.
+- Real browser verification in headless Brave passed light/dark layouts, unchanged board width with an open dialog, equal Write/Preview frame height, focused command search, rail keyboard navigation, no native selects, and no page errors. A keyboard-only journey created an issue with a Markdown body, edited its title, appended a comment, closed with Escape, and reopened through the command palette; resulting Markdown was checked on disk. Browser test fixtures and screenshots stayed outside the repository.
+- Code review: Standards found no documented breaches or material smells; removed its optional duplicated feature-key helper. Spec found missing persistent document/link failure toasts and a colour-mode tooltip, both corrected and confirmed resolved. Reviewers also confirmed the synchronous guard preserves ADR 0005 and keyboard improvements remain in scope. No outstanding findings.
+- Limitations: drafts and failed-save recovery remain tab memory only. Whole-body reapplication and lost-response reconciliation retain the earlier limitations; the writer/creation filesystem races and lock limitations documented in tickets 04–06 are unchanged. The production build retains a nonblocking bundle-size warning (~1.16 MB minified / 340 kB gzip), consistent with ADR 0004's accepted Chakra runtime tradeoff. jsdom emits nonblocking development warnings from library toast/dialog scheduling; geometry and the main keyboard journeys were verified in the real browser. Dragging and explicit candidate repair remain deferred to tickets 12 and 13.
+- Handoff for ticket 12: attach `@dnd-kit/react` dragging to `BoardView`'s columns and card rendering, extracting hook-bearing card/column components as needed. Reuse `onStatusChange` and the existing `write` mutation with its `expectedRevision`, optimistic rollback, failure toast/inline feedback, and advisory dependencies. Preserve feature/number ordering, ignore same-column/cancelled drops, disable pending/creating cards, and keep the searchable status menu available. Keep List, URL navigation, dialogs, draft guards, and public role/name test contracts intact. The existing exact `@dnd-kit/react` 0.5.0 development dependency is retained for that ticket; check its current release/changelog there. Triage remains `ready-for-agent`; completion is recorded only by the workflow checkbox.
