@@ -10,7 +10,7 @@ export type IssueDraft = { base: Issue; original: EditorValues; values: EditorVa
 export type IssueEditorActions = {
   draft: IssueDraft | undefined;
   onDraft: (draft: IssueDraft | undefined) => void;
-  onWrite: (base: Issue, endpoint: 'edit' | 'comment', fields: { changes: IssueChanges } | { comment: string }) => Promise<Issue>;
+  onWrite: (base: Issue, endpoint: 'edit' | 'comment', fields: { changes: IssueChanges } | { comment: string }, submitted?: IssueDraft) => Promise<Issue>;
   onReload: () => Promise<void>;
 };
 
@@ -29,14 +29,26 @@ function changesFrom(values: EditorValues, base: EditorValues) {
   };
 }
 
-export function IssueEditor(props: IssueEditorActions & { issue: Issue; issues: Issue[]; saving: boolean }) {
+export type EditorActions = Omit<IssueEditorActions, 'draft' | 'onDraft'> & { onDirty: (dirty: boolean) => void; recovery?: IssueDraft | undefined; onDiscardRecovery: () => void };
+export function IssueEditor({ onDirty, recovery, onDiscardRecovery, ...rest }: EditorActions & { issue: Issue; issues: Issue[]; saving: boolean }) {
+  const [draft, setDraft] = useState<IssueDraft | undefined>(recovery);
+  useEffect(() => { onDirty(!!draft); }, [draft, onDirty]);
+  useEffect(() => {
+    if (!draft) return;
+    const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', protect);
+    return () => window.removeEventListener('beforeunload', protect);
+  }, [draft]);
+  return <Editor {...rest} draft={draft} onDraft={(next) => { setDraft(next); if (!next) onDiscardRecovery(); }} />;
+}
+function Editor(props: IssueEditorActions & { issue: Issue; issues: Issue[]; saving: boolean }) {
   let problem: string | undefined;
-  try { if (!props.issue.workflow) throw new Error('This issue needs attention. Structured editing is unavailable.'); issueDocument(props.issue.content!); }
+  try { if (props.issue.content === null) throw new Error('The file was removed, renamed, or moved outside the app. Copy your draft before closing.'); if (!props.issue.workflow) throw new Error('This issue needs attention. Structured editing is unavailable.'); issueDocument(props.issue.content!); }
   catch (error) { problem = error instanceof Error ? error.message : 'Cannot safely edit this document.'; }
   if (problem) return <section aria-label="Issue editor"><p role="alert">{problem}</p>
     {props.draft && <><p>Your unsaved draft is retained. Copy it before editing the file directly.</p>
       <textarea aria-label="Recoverable draft" readOnly value={JSON.stringify(props.draft.values, null, 2)} />
-      <button onClick={() => props.onDraft(undefined)}>Discard draft</button></>}
+      <button onClick={() => props.onDraft(undefined)}>Discard mine</button></>}
     <button disabled={props.saving} onClick={() => { void props.onReload().catch(() => {}); }}>Reload issues, keep draft</button>
   </section>;
   return <EditableIssue {...props} />;
@@ -72,7 +84,7 @@ function EditableIssue({ issue, issues, draft, onDraft, onWrite, onReload, savin
     if (!parsed.success) { setMessage(parsed.error.issues.map((failure) => failure.message).join('; ')); return; }
     setMessage(null);
     try {
-      const saved = await onWrite(base, 'edit', { changes: parsed.data });
+      const saved = await onWrite(base, 'edit', { changes: parsed.data }, { base, original: defaults, values });
       replace(saved, { ...editorValues(saved, issues), comment: values.comment });
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Issue was not saved. Your draft is retained.'); }
   }
@@ -82,14 +94,17 @@ function EditableIssue({ issue, issues, draft, onDraft, onWrite, onReload, savin
     if (!parsed.success) { setMessage(parsed.error.issues.map((failure) => failure.message).join('; ')); return; }
     setMessage(null);
     try {
-      const saved = await onWrite(base, 'comment', { comment });
+      const saved = await onWrite(base, 'comment', { comment }, { base, original: defaults, values: getValues() });
       replace(saved, { ...getValues(), comment: '' });
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Comment was not saved. Your draft is retained.'); }
   }
   return <section className="issue-editor" aria-label="Issue editor">
     <h3>Edit issue</h3>
-    <p className="muted">Save fields and body explicitly. Existing comments are separate. Drafts stay in this tab when you switch issues.</p>
-    {stale && <p role="alert">The loaded issue differs from your draft. Review the latest Markdown below before recovering changes.</p>}
+    <p className="muted">Save fields and body explicitly. Existing comments are separate. Unsaved changes remain only while this editor is open.</p>
+    {stale && <div role="alert"><p>The loaded issue differs from your draft. The file changed outside the app.</p>
+      <p>Changed on disk: {Object.keys(changesFrom(editorValues(issue, issues), defaults)).join(', ') || 'other Markdown or comments'}.</p>
+      <p>Changed in draft: {[...Object.keys(changesFrom(values, defaults)), ...(values.comment ? ['comment'] : [])].join(', ') || 'none'}.</p>
+    </div>}
     {message && <p role="alert">{message}</p>}
     <form noValidate onSubmit={handleSubmit(save)} onChange={retain}>
       <fieldset disabled={saving}>
@@ -118,10 +133,13 @@ function EditableIssue({ issue, issues, draft, onDraft, onWrite, onReload, savin
       <button disabled={saving} onClick={() => { void onReload().catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Reload failed; draft retained.')); }}>Reload issues, keep draft</button>
       {stale && <button disabled={saving} onClick={() => {
         const changes = changesFrom(getValues(), defaults);
+        const disk = changesFrom(editorValues(issue, issues), defaults);
+        const overlaps = Object.keys(changes).filter((key) => key in disk);
+        if (overlaps.length && !window.confirm(`Both changed: ${overlaps.join(', ')}. Reapply your values over the latest fields?`)) return;
         replace(issue, { ...editorValues(issue, issues), ...changes, dependenciesEdited: changes.dependencies !== undefined, comment: getValues('comment') });
         setMessage('Draft changes recovered onto the loaded version. Review all fields and Markdown before saving. For comments, check whether a lost response already saved the comment.');
-      }}>Recover draft on latest version</button>}
-      {(changed || values.comment || draft) && <button disabled={saving} onClick={() => { replace(issue, editorValues(issue, issues)); setMessage(null); }}>Discard draft</button>}
+      }}>Reapply mine on latest</button>}
+      {(changed || values.comment || draft) && <button disabled={saving} onClick={() => { replace(issue, editorValues(issue, issues)); setMessage(null); }}>Discard mine</button>}
     </div>
   </section>;
 }

@@ -23,8 +23,11 @@ test('installed tarball serves its own frontend against a separate folder and sh
   await writeFile(join(folder, 'spec.md'), '# Packaged specification\n\nStatus: proposed\n');
   const tarball = join(temporary, 'md-kanban.tgz');
   execFileSync('pnpm', ['pack', '--out', tarball], { cwd: checkout, stdio: 'pipe' });
-  await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true }));
+  const { packageManager } = JSON.parse(await readFile(join(checkout, 'package.json'), 'utf8'));
+  await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true, packageManager }));
   execFileSync('pnpm', ['add', '--offline', '--ignore-scripts', tarball], { cwd: installation, stdio: 'pipe' });
+  const packed = JSON.parse(await readFile(join(installation, 'node_modules/md-kanban/package.json'), 'utf8'));
+  assert.deepEqual(Object.keys(packed.dependencies).sort(), ['open', 'zod'], 'client packages are bundled build dependencies');
   const cli = process.platform === 'win32'
     ? join(installation, 'node_modules', 'md-kanban', 'dist', 'server', 'cli.js')
     : join(installation, 'node_modules', '.bin', 'md-kanban');
@@ -79,6 +82,11 @@ test('installed tarball serves its own frontend against a separate folder and sh
     assert.ok((await response.text()).length > 0);
   }
   assert.equal((await fetch(`${url}/package.json`)).status, 404);
+  const deep = await fetch(`${url}/board/alpha?issue=01-example.md`);
+  assert.equal(deep.status, 200);
+  assert.match(await deep.text(), /<title>md-kanban<\/title>/);
+  assert.equal((await fetch(`${url}/api/unknown`)).status, 404);
+  assert.equal((await fetch(`${url}/assets/missing.js`)).status, 404);
   assert.equal((await fetch(`${url}/api/context`, { method: 'POST' })).status, 405);
   app.child.kill('SIGTERM');
   assert.equal((await app.exit).code, 0);

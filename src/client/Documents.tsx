@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { documentLinkSchema, documentListSchema, openedDocumentSchema, type DocumentLink, type OpenedDocument, type SupportingDocument } from '../server/document-types.js';
+import { useDiskQuery, diskKey } from './ClientState';
 import { SafeMarkdown } from './SafeMarkdown';
 
 const groups = [
@@ -13,30 +14,10 @@ async function fetchJson(url: string): Promise<{ ok: boolean; value: unknown }> 
 const errorOf = (value: unknown, fallback: string): string =>
   typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string' ? value.error : fallback;
 
-/** Loads the supporting-document list; it reloads when the board changes or the window regains focus. */
-export function useSupportingDocuments(boardVersion: unknown) {
-  const [documents, setDocuments] = useState<SupportingDocument[]>([]);
-  const [failed, setFailed] = useState(false);
-  const requests = useRef(0);
-  const alive = useRef(false);
-  // Ignore responses that finish after the board is gone.
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  async function load() {
-    const request = ++requests.current;
-    try {
-      const { ok, value } = await fetchJson('/api/documents');
-      if (!ok) throw new Error(errorOf(value, 'Unavailable'));
-      const list = documentListSchema.parse(value);
-      if (alive.current && request === requests.current) { setDocuments((current) => JSON.stringify(current) === JSON.stringify(list.documents) ? current : list.documents); setFailed(false); }
-    } catch { if (alive.current && request === requests.current) setFailed(true); }
-  }
-  useEffect(() => { void load(); }, [boardVersion]);
-  useEffect(() => {
-    const onFocus = () => { void load(); };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
-  return { documents, failed };
+/** File events and focus invalidate the cached supporting-document list. */
+export function useSupportingDocuments() {
+  const query = useDiskQuery([...diskKey, 'documents'], '/api/documents', documentListSchema);
+  return { documents: query.data?.documents ?? [], failed: query.isError };
 }
 
 export function DocumentList({ documents, failed, onOpen }: { documents: SupportingDocument[]; failed: boolean; onOpen: (path: string) => void }) {
@@ -70,35 +51,16 @@ export async function resolveLink(from: string, href: string): Promise<DocumentL
 
 type Loaded = { state: 'loading' } | { state: 'ready'; document: OpenedDocument } | { state: 'unavailable'; reason: string };
 
-/** Read-only side panel. It re-reads the file whenever it opens, on focus, and on request, so it never serves a cached copy. */
+/** Read-only panel: cached content stays visible while a query refreshes from disk. */
 export function DocumentPanel({ target, notice, onLink, onClose, onBack, backLabel }: {
   target: DocumentTarget; notice: string | null; onLink: (from: string, href: string) => void; onClose: () => void;
   onBack?: (() => void) | undefined; backLabel?: string | undefined;
 }) {
-  const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
+  const query = useDiskQuery([...diskKey, 'document', target.path], `/api/document?${new URLSearchParams({ path: target.path })}`, openedDocumentSchema);
   const [missingFragment, setMissingFragment] = useState<string | null>(null);
-  const [reloads, setReloads] = useState(0);
   const panel = useRef<HTMLElement>(null);
-  const requests = useRef(0);
-  async function read(path: string) {
-    const request = ++requests.current;
-    try {
-      const { ok, value } = await fetchJson(`/api/document?${new URLSearchParams({ path })}`);
-      if (request !== requests.current) return;
-      setLoaded(ok ? { state: 'ready', document: openedDocumentSchema.parse(value) } : { state: 'unavailable', reason: errorOf(value, 'This document is unavailable.') });
-    } catch { if (request === requests.current) setLoaded({ state: 'unavailable', reason: 'This document could not be read. Check the local server and try again.' }); }
-  }
-  useEffect(() => {
-    setLoaded((current) => current.state === 'ready' && current.document.path === target.path ? current : { state: 'loading' });
-    setMissingFragment(null);
-    void read(target.path);
-  }, [target.path, reloads]);
-  useEffect(() => { panel.current?.focus(); panel.current?.scrollTo?.(0, 0); }, [target.path]);
-  useEffect(() => {
-    const onFocus = () => { void read(target.path); };
-    window.addEventListener('focus', onFocus);
-    return () => { requests.current++; window.removeEventListener('focus', onFocus); };
-  }, [target.path]);
+  useEffect(() => { panel.current?.focus(); panel.current?.scrollTo?.(0, 0); setMissingFragment(null); }, [target.path]);
+  const loaded: Loaded = query.isError ? { state: 'unavailable', reason: query.error.message } : query.data ? { state: 'ready', document: query.data } : { state: 'loading' };
   const opened = loaded.state === 'ready' ? loaded.document : null;
   return <aside className="issue-details document-details" aria-label="Supporting document" tabIndex={-1} ref={panel}
     onKeyDown={(event) => { if (event.key === 'Escape') onClose(); }}>
@@ -112,7 +74,7 @@ export function DocumentPanel({ target, notice, onLink, onClose, onBack, backLab
     </dl>
     <p>
       {onBack && <button onClick={onBack}>{backLabel ?? 'Back'}</button>}
-      <button onClick={() => setReloads((count) => count + 1)}>Reload document</button>
+      <button onClick={() => void query.refetch()}>Reload document</button>
     </p>
     {notice && <p role="alert">{notice}</p>}
     {missingFragment && <p role="status">The section “{missingFragment}” was not found in this document.</p>}

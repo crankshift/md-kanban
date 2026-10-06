@@ -164,8 +164,14 @@ export async function startServer(folder: string): Promise<RunningServer> {
         response.writeHead(404).end('Not found');
         return;
       }
-      const body = await readFile(path);
-      response.writeHead(200, { 'Content-Type': mime[extname(path)] ?? 'application/octet-stream' });
+      let body: Buffer;
+      let contentType = mime[extname(path)] ?? 'application/octet-stream';
+      try { body = await readFile(path); }
+      catch {
+        if (pathname === '/api' || pathname.startsWith('/api/') || pathname.startsWith('/assets/') || !!extname(pathname)) { response.writeHead(404).end('Not found'); return; }
+        body = await readFile(resolve(assets, 'index.html')); contentType = 'text/html; charset=utf-8';
+      }
+      response.writeHead(200, { 'Content-Type': contentType });
       response.end(request.method === 'HEAD' ? undefined : body);
     } catch {
       response.writeHead(404).end('Not found');

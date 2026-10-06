@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+// Load before the per-test DOM so Node uses server defaults without browser cache-GC timers.
+import '@tanstack/react-query';
+import { RouterProvider } from 'react-router';
 import { createServer } from 'vite';
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode } from 'react';
 import { discoverIssues } from '../dist/server/discovery.js';
 import { startServer } from '../dist/server/server.js';
 import { fixture } from './fixtures.mjs';
@@ -44,11 +47,11 @@ function streamingEventSource(nativeFetch, url, inAct, sources) {
  * Renders the real Board against a real server and temporary files. With `live`, the board also receives the
  * server's event stream through a fetch-based EventSource, since jsdom provides none.
  */
-export async function renderBoard(t, files, editable = false, { live = false } = {}) {
+export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', application = false } = {}) {
   const folder = await fixture(t, files);
   const data = await discoverIssues(folder);
-  const dom = new JSDOM('<div id="root"></div>');
-  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const dom = new JSDOM('<div id="root"></div>', { url: address });
+  const globals = { window: dom.window, location: dom.window.location, history: dom.window.history, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
   let sessionToken;
   let server;
   const sources = [];
@@ -63,15 +66,22 @@ export async function renderBoard(t, files, editable = false, { live = false } =
     if (live) globals.EventSource = streamingEventSource(nativeFetch, url, (callback) => act(callback), sources);
   }
   const originals = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  dom.window.confirm = () => true;
   Object.assign(globalThis, globals);
   const { createRoot } = await import('react-dom/client');
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs'] } });
   const { Board } = await vite.ssrLoadModule('/Board.tsx');
+  const { App } = await vite.ssrLoadModule('/App.tsx');
+  const { ClientProviders, createClientRouter } = await vite.ssrLoadModule('/ClientState.tsx');
+  const router = createClientRouter(application ? createElement(App) : createElement(Board, { data, sessionToken }));
   const root = createRoot(document.getElementById('root'));
   let mounted = true;
   const unmount = async () => { if (mounted) { mounted = false; await act(async () => root.unmount()); } };
   t.after(async () => {
     await unmount();
+    router.dispose();
+    // Let queued router/query notifications settle while their browser globals still exist.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
     await vite.close();
     dom.window.close();
     for (const [key, descriptor] of originals) {
@@ -79,7 +89,9 @@ export async function renderBoard(t, files, editable = false, { live = false } =
       else delete globalThis[key];
     }
   });
-  await act(async () => root.render(createElement(Board, { data, sessionToken })));
+  const tree = createElement(ClientProviders, {}, createElement(RouterProvider, { router }));
+  await act(async () => root.render(application ? createElement(StrictMode, {}, tree) : tree));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
   return {
     folder, document: dom.window.document, sources, server, unmount,
     until: async (predicate, label, timeout = 8000) => {
@@ -89,13 +101,14 @@ export async function renderBoard(t, files, editable = false, { live = false } =
         await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
       }
     },
-    click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => element.click()); },
+    click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => { element.click(); await new Promise((resolve) => setTimeout(resolve, 100)); }); },
     change: async (element, value) => {
       assert.ok(element, 'input exists');
       await act(async () => {
         const prototype = element.tagName === 'SELECT' ? dom.window.HTMLSelectElement.prototype : element.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype;
         Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
         element.dispatchEvent(new dom.window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       });
     },
     settled: async () => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
-import { realpath } from 'node:fs/promises';
-import { basename, sep } from 'node:path';
+import { lstat, readdir, realpath } from 'node:fs/promises';
+import { basename, join, sep } from 'node:path';
 import { discoverIssues, excluded } from './discovery.js';
 
 export type BoardWatcher = {
@@ -15,15 +15,35 @@ export type BoardWatcherOptions = { pollMs?: number; native?: boolean };
 
 const debounceMs = 100;
 
+// Include ordinary linked Markdown as well as listed supporting documents. Stat fingerprints avoid
+// reading document contents here; the document API still owns safe reads and the selected-root boundary.
+async function markdownVersions(folder: string): Promise<unknown[]> {
+  const versions: unknown[] = [];
+  async function walk(directory: string) {
+    for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.isSymbolicLink() || entry.name.startsWith('.md-kanban-') || (excluded.has(entry.name) && entry.name !== 'adr')) continue;
+      const path = join(directory, entry.name);
+      try {
+        if (entry.isDirectory()) await walk(path);
+        else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+          const stat = await lstat(path);
+          if (!stat.isSymbolicLink()) versions.push([path, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
+        }
+      } catch { versions.push([path, 'unavailable']); }
+    }
+  }
+  await walk(folder);
+  return versions;
+}
 const fingerprintOf = async (folder: string): Promise<string> => {
-  try { return createHash('sha256').update(JSON.stringify(await discoverIssues(folder))).digest('hex'); }
-  catch { return 'unavailable'; } // An unreadable root is a change clients must learn about.
+  try { return createHash('sha256').update(JSON.stringify([await discoverIssues(folder), await markdownVersions(folder)])).digest('hex'); }
+  catch { return 'unavailable'; }
 };
 
 /**
- * Observes the selected folder and reports only changes to the discovered board.
+ * Observes the selected folder and reports issue or supporting Markdown changes.
  * Events are hints: every burst is debounced and the board is rediscovered, so atomic replacements,
- * renames, and writes by other tools converge on the same result, and unrelated files publish nothing.
+ * renames, and writes by other tools converge on the same result, and non-Markdown files publish nothing.
  * Falls back to polling when recursive native watching is unavailable or fails.
  */
 export async function createBoardWatcher(folder: string, options: BoardWatcherOptions = {}): Promise<BoardWatcher> {
@@ -73,7 +93,7 @@ export async function createBoardWatcher(folder: string, options: BoardWatcherOp
   };
   // Lock and temporary files from our own writes never affect discovery.
   const relevant = (filename: string | null): boolean => filename === null ||
-    (!basename(filename).startsWith('.md-kanban-') && !filename.split(sep).some((part) => excluded.has(part)));
+    (!basename(filename).startsWith('.md-kanban-') && !filename.split(sep).some((part) => (excluded.has(part) && part !== 'adr')));
 
   if (native) {
     try {

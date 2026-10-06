@@ -20,7 +20,7 @@ The checkboxes below track implementation completion for this effort. They do no
 - [x] 06 — Create issues in an existing feature or effort
 - [x] 07 — Refresh external changes while protecting drafts
 - [x] 08 — Browse supporting documents and ADRs
-- [ ] 10 — Move client state into the URL, query cache, and editor
+- [x] 10 — Move client state into the URL, query cache, and editor
 - [ ] 11 — Rebuild the interface with Chakra UI as a navigator board
 - [ ] 12 — Drag cards between status columns
 - [ ] 13 — Fix unrecognized issue candidates from Needs attention

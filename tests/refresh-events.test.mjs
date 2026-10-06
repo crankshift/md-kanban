@@ -81,7 +81,7 @@ test('agent-like writes, creations, renames, deletions and atomic replacements r
   });
 });
 
-test('bursts publish once and unrelated Markdown or ignored folders publish nothing', async (t) => {
+test('supporting Markdown refreshes queries, bursts publish once and ignored folders publish nothing', async (t) => {
   const { folder, stream } = await connected(t);
   await writeFile(join(folder, '.scratch/alpha/spec.md'), '# Spec\n\nStatus: approved\n');
   await writeFile(join(folder, 'docs/adr/0001-example.md'), '# 0001: Example\n\nStatus: superseded\n');
@@ -89,13 +89,13 @@ test('bursts publish once and unrelated Markdown or ignored folders publish noth
   await mkdir(join(folder, 'node_modules/example/issues'), { recursive: true });
   await writeFile(join(folder, 'node_modules/example/issues/01-vendor.md'), '# 01: Vendor\n\nStatus: open\n');
   await pause(600);
-  assert.equal(stream.changes(), 0, 'supporting documents never become board changes');
+  assert.equal(stream.changes(), 1, 'supporting Markdown invalidates the query cache');
   for (const status of ['needs-info', 'ready-for-human', 'wontfix', 'needs-triage']) {
     await writeFile(join(folder, '.scratch/alpha/issues/01-start.md'), `# 01: Start\n\nStatus: ${status}\nBlocked by: None\n`);
   }
-  await stream.waitForChanges(1);
+  await stream.waitForChanges(2);
   await pause(600);
-  assert.equal(stream.changes(), 1, 'a burst of writes settles into one notification');
+  assert.equal(stream.changes(), 2, 'a burst of writes settles into one notification');
 });
 
 test('app writes notify once with a refresh that matches the saved result', async (t) => {
@@ -140,7 +140,8 @@ test('stopping the server ends event streams and releases the watcher', async (t
   const before = watchers();
   const app = await startServer(folder);
   const stream = await connectEvents(t, app.url);
-  assert.equal(watchers(), before + 1, 'the folder is observed while running');
+  t.after(() => app.close());
+  assert.ok(watchers() > before, 'the folder is observed while running (Node may use one watcher per directory)');
   await app.close();
   await stream.waitForEnd();
   await app.close(); // Closing again is harmless.
@@ -155,7 +156,8 @@ test('a plain server.close also releases the watcher', async (t) => {
   const folder = await fixture(t, files);
   const before = watchers();
   const app = await startServer(folder);
-  assert.equal(watchers(), before + 1);
+  t.after(() => app.close());
+  assert.ok(watchers() > before);
   await new Promise((resolve) => { app.server.close(resolve); app.server.closeAllConnections(); });
   await released(before);
 });

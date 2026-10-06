@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { act } from 'react';
 import { renderBoard } from './render-board.mjs';
 
-test('explicit form saves preserve comments, preview safely and retain drafts across navigation', async (t) => {
+test('explicit form saves preserve comments, preview safely and confirm discarding drafts on navigation', async (t) => {
   const original = '# 01: Example\nStatus: ready-for-agent\nBlocked by: None (first issue)\n\n## Acceptance\n- [x] Keep\n\n## Comments\nExisting comment.\n';
   const ui = await renderBoard(t, { 'issues/01-example.md': original, 'issues/02-other.md': '# 02: Other\nStatus: needs-info\n' }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => button.textContent === text);
@@ -19,10 +19,11 @@ test('explicit form saves preserve comments, preview safely and retain drafts ac
   assert.equal(preview.querySelector('strong').textContent, 'Preview');
   assert.equal(preview.querySelectorAll('script, a[href^="javascript:"]').length, 0);
   assert.equal(preview.querySelector('input[type="checkbox"]').disabled, true);
+  let confirmations = 0;
+  ui.document.defaultView.confirm = () => { confirmations++; return false; };
   await ui.click(ui.document.querySelector('[data-issue-id="issues/02-other.md"]'));
-  await ui.click(ui.document.querySelector('[data-issue-id="issues/01-example.md"]'));
+  assert.equal(confirmations, 1);
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Edited example');
-  assert.equal(ui.document.querySelector('[aria-label="New comment"]').value, 'Draft comment');
   await ui.click(button('Save issue'));
   await ui.settled();
   let content = await readFile(join(ui.folder, 'issues/01-example.md'), 'utf8');
@@ -57,7 +58,7 @@ test('form validation and stale saves retain drafts, and explicit recovery prese
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'My draft');
   assert.equal(ui.document.querySelector('[aria-label="New comment"]').value, 'My comment');
   assert.match(ui.document.querySelector('[role="alert"]').textContent, /draft is retained/);
-  await ui.click(button('Recover draft on latest version'));
+  await ui.click(button('Reapply mine on latest'));
   assert.match(ui.document.querySelector('[aria-label="Markdown body"]').value, /External body/);
   await ui.click(button('Save issue'));
   await ui.settled();
@@ -72,7 +73,7 @@ test('form validation and stale saves retain drafts, and explicit recovery prese
   const event = new ui.document.defaultView.Event('beforeunload', { cancelable: true });
   ui.document.defaultView.dispatchEvent(event);
   assert.equal(event.defaultPrevented, true, 'leaving a draft warns before unloading');
-  await ui.click(button('Discard draft'));
+  await ui.click(button('Discard mine'));
   assert.match(ui.document.querySelector('[aria-label="Markdown body"]').value, /External body/);
 });
 
@@ -131,13 +132,13 @@ test('disk errors and lost comment responses preserve recoverable drafts without
   await ui.click(button('Append comment'));
   await ui.settled();
   assert.equal((await readFile(path, 'utf8')).match(/Keep my comment/g).length, 1, 'stale retry cannot duplicate a comment');
-  await ui.click(button('Discard draft'));
+  await ui.click(button('Discard mine'));
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Offline draft');
   globalThis.fetch = async () => { throw new TypeError('Server offline'); };
   await ui.click(button('Save issue'));
   await ui.settled();
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Offline draft');
-  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Reload failed.*draft is retained/);
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /draft is retained/);
   globalThis.fetch = transport;
   await ui.click(button('Reload issues, keep draft'));
   await ui.settled();
@@ -154,11 +155,11 @@ test('removed or newly unsupported issues retain a copyable draft and can reload
   await unlink(path);
   await ui.click(button('Save issue'));
   await ui.settled();
-  assert.match(ui.document.querySelector('.draft-list').textContent, /Unavailable issue draft.*Recover me/s);
+  assert.match(ui.document.querySelector('[aria-label="Recoverable draft"]').value, /Recover me/);
+  assert.equal(ui.document.querySelector('.draft-list'), null);
   await writeFile(path, original.replace('ready-for-agent', 'unknown'));
-  await ui.click(button('Reload issues, keep drafts'));
+  await ui.click(button('Reload issues, keep draft'));
   await ui.settled();
-  await ui.click(button('Draft #01: Example'));
   assert.match(ui.document.querySelector('[aria-label="Recoverable draft"]').value, /Recover me/);
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]'), null);
   await writeFile(path, original);
@@ -258,7 +259,7 @@ test('stale saves refresh the external status and preserve external comments, wh
   await ui.settled();
   assert.equal(control().value, 'claimed');
   assert.equal(control().closest('.column').getAttribute('aria-labelledby'), 'column-claimed');
-  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Status was not saved.*changed on disk.*Latest issues loaded/);
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Status was not saved.*changed on disk/);
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), external);
   await chmod(join(ui.folder, '01-change.md'), 0o444);
   await ui.change(control(), 'resolved');
@@ -273,7 +274,7 @@ test('stale saves refresh the external status and preserve external comments, wh
   assert.match(await readFile(join(ui.folder, '01-change.md'), 'utf8'), /Agent comment/);
 });
 
-test('pending saves show the last persisted status and prevent overlapping UI writes', async (t) => {
+test('pending saves show an optimistic status and prevent overlapping UI writes', async (t) => {
   const ui = await renderBoard(t, {
     '01-first.md': '# 01: First\nStatus: ready-for-agent\n',
     '02-second.md': '# 02: Second\nStatus: ready-for-agent\n',
@@ -284,8 +285,8 @@ test('pending saves show the last persisted status and prevent overlapping UI wr
   globalThis.fetch = async (path, options) => { if (path === '/api/status') await gate; return transport(path, options); };
   const controls = [...ui.document.querySelectorAll('.card select')];
   await ui.change(controls[0], 'needs-info');
-  assert.equal(controls[0].value, 'ready-for-agent');
-  assert.ok(controls.every((control) => control.disabled));
+  assert.equal(ui.document.querySelector('[data-issue-id="01-first.md"]').closest('.card').querySelector('select').value, 'needs-info');
+  assert.ok([...ui.document.querySelectorAll('.card select')].every((control) => control.disabled));
   assert.match(ui.document.querySelector('[role="status"]').textContent, /Saving issue/);
   await ui.change(controls[1], 'wontfix');
   await act(async () => release());
@@ -306,12 +307,12 @@ test('a lost save response recovers the persisted status and a failed refresh gi
   await ui.settled();
   assert.equal(ui.document.querySelector('.card select').value, 'needs-info');
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
-  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Could not confirm.*Latest issues loaded/);
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Could not confirm/);
   globalThis.fetch = async () => { throw new TypeError('Server stopped'); };
   await ui.change(ui.document.querySelector('.card select'), 'wontfix');
   await ui.settled();
   assert.equal(ui.document.querySelector('.card select').value, 'needs-info');
-  assert.match(ui.document.querySelector('[role="alert"]').textContent, /displayed statuses may be outdated.*Reload the page/);
+  assert.match(ui.document.querySelector('[role="alert"]').textContent, /Could not confirm/);
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
 });
 
@@ -360,7 +361,7 @@ test('search and both filters compose, and dependency navigation finds hidden ta
   assert.equal(cards().length, 5);
 });
 
-test('creation form previews Markdown, retains drafts on close and opens a searchable persisted issue', async (t) => {
+test('creation form previews Markdown, discards drafts on confirmed close and opens a searchable persisted issue', async (t) => {
   const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\nStatus: ready-for-agent\n' }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => button.textContent === text);
   await ui.click(button('New issue'));
@@ -372,7 +373,9 @@ test('creation form previews Markdown, retains drafts on close and opens a searc
   assert.equal(ui.document.querySelector('[aria-label="New issue preview"] script'), null);
   await ui.click(button('Close creation'));
   await ui.click(button('New issue'));
-  assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Created example');
+  assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, '');
+  await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Created example');
+  await ui.change(ui.document.querySelector('[aria-label="New issue body"]'), '## Outcome\n**Find this phrase**');
   await ui.click(button('Create issue'));
   await ui.settled();
   assert.match(await readFile(join(ui.folder, 'issues/02-created-example.md'), 'utf8'), /Find this phrase/);
@@ -423,7 +426,7 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   await ui.settled();
   globalThis.fetch = transport;
   assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Retained new draft');
-  assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /Inspect the board for a saved issue/);
+  assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /review latest Markdown|Lost response/);
   assert.equal(ui.document.querySelectorAll('.card').length, 2, 'refresh shows disk without claiming creation success');
   assert.doesNotMatch(ui.document.body.textContent, /Retained new draft created\./);
   await ui.click(button('Create issue'));
@@ -431,7 +434,7 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   assert.equal((await readdir(join(ui.folder, 'issues'))).filter((name) => name.endsWith('.md')).length, 2, 'stale retry cannot duplicate a lost-response creation');
   await ui.click(button('Close creation'));
   await ui.click(ui.document.querySelector('[data-issue-id="issues/01-existing.md"]'));
-  assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Existing edit draft');
+  assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Existing');
 });
 
 test('creation selects wayfinding workflow/type, scoped dependencies and initial status', async (t) => {

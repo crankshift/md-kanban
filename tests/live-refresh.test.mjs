@@ -78,7 +78,7 @@ test('a dirty draft survives an external change to its issue, stale saves are re
   await ui.change(ui.document.querySelector('[aria-label="New comment"]'), 'Draft comment');
   const external = files[FIRST].replace('Original notes.', 'Agent notes.') + '\n## Comments\nAgent comment.\n';
   await ui.write(FIRST, external);
-  await ui.until(() => /changed outside the app/.test(ui.text('.draft-list')), 'the conflict notice');
+  await ui.until(() => /changed outside the app/.test(ui.text('.issue-editor')), 'the conflict notice');
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]'), title, 'typing is not interrupted');
   assert.equal(title.value, 'Draft title');
   assert.equal(ui.document.querySelector('[aria-label="New comment"]').value, 'Draft comment');
@@ -94,7 +94,7 @@ test('a dirty draft survives an external change to its issue, stale saves are re
   assert.equal(await readFile(join(ui.folder, FIRST), 'utf8'), external, 'a stale comment is rejected too');
   assert.equal(ui.document.querySelector('[aria-label="New comment"]').value, 'Draft comment');
 
-  await ui.click(ui.button('Recover draft on latest version'));
+  await ui.click(ui.button('Reapply mine on latest'));
   await ui.click(ui.button('Save issue'));
   await ui.settled();
   const saved = await readFile(join(ui.folder, FIRST), 'utf8');
@@ -133,22 +133,23 @@ test('app saves are not duplicated or reverted by their own file-change notifica
   assert.match(await readFile(join(ui.folder, SECOND), 'utf8'), /Status: wontfix/);
 });
 
-test('a removed issue keeps its draft recoverable, with or without the details open', async (t) => {
+test('a removed issue keeps its draft recoverable while the details stay open', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Recover me');
   await rm(join(ui.folder, FIRST));
-  await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft of removed issue"]'), 'the removed-issue panel');
-  assert.match(ui.document.querySelector('[aria-label="Recoverable draft of removed issue"]').value, /Recover me/);
-  assert.match(ui.text('.draft-list'), /Unavailable issue draft.*removed, renamed, or moved/s);
-  await ui.click(ui.button('Discard draft'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft"]'), 'the removed-issue panel');
+  assert.match(ui.document.querySelector('[aria-label="Recoverable draft"]').value, /Recover me/);
+  assert.match(ui.text('.issue-details'), /removed, renamed, or moved/s);
+  await ui.click(ui.button('Discard mine'));
   assert.equal(ui.document.querySelector('.draft-list'), null);
+  await ui.click(ui.document.querySelector('[aria-label="Close issue details"]'));
   assert.equal(ui.document.querySelector('.issue-details'), null);
 
   await ui.open(SECOND);
   await rm(join(ui.folder, SECOND));
   await ui.until(() => /removed, renamed, or moved outside the app/.test(ui.text('.issue-details')), 'the removed-issue notice');
-  assert.equal(ui.document.querySelector('[aria-label="Recoverable draft of removed issue"]'), null, 'there is no draft to show');
+  assert.equal(ui.document.querySelector('[aria-label="Recoverable draft"]'), null, 'there is no draft to show');
   await ui.write(SECOND, files[SECOND]); // A delete-and-recreate returns the same issue to the open panel.
   await ui.until(() => ui.text('.issue-details h2') === '#02: Alpha second', 'the reappearing issue');
   await ui.click(ui.document.querySelector('[aria-label="Close issue details"]'));
@@ -160,7 +161,7 @@ test('a draft returns to the reappearing file, which is a conflict rather than a
   await ui.open(FIRST);
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Back again');
   await rm(join(ui.folder, FIRST));
-  await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft of removed issue"]'), 'removal');
+  await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft"]'), 'removal');
   await ui.write(FIRST, files[FIRST].replace('Original notes.', 'Rewritten.'));
   await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'the file to return');
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Back again');
@@ -178,7 +179,7 @@ test('files becoming malformed move to Needs attention while the draft stays rec
   await ui.until(() => /Alpha first/.test(ui.text('.attention')), 'the attention entry');
   assert.match(ui.text('.attention'), /status/i);
   assert.ok(!ui.cards('ready-for-agent').includes('Alpha first'));
-  assert.match(ui.text('.draft-list'), /now needs attention/);
+  assert.match(ui.text('[aria-label="Issue editor"]'), /needs attention/);
   assert.match(ui.document.querySelector('[aria-label="Recoverable draft"]').value, /Mid-edit/);
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]'), null);
   await ui.write(FIRST, files[FIRST]);
@@ -237,7 +238,7 @@ test('a refresh waits for an in-flight save instead of racing its confirmation',
   await ui.write(SECOND, files[SECOND].replace('needs-info', 'wontfix'));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 600)));
   assert.ok(!ui.cards('wontfix').includes('Alpha second'), 'the board shows confirmed state while a save is pending');
-  assert.ok(ui.cards('ready-for-agent').includes('Alpha first'), 'the pending move is not shown as saved');
+  assert.ok(ui.cards('needs-info').includes('Alpha first'), 'the pending move is optimistic');
   release();
   await ui.until(() => ui.cards('wontfix').includes('Alpha second'), 'the deferred refresh');
   assert.ok(ui.cards('needs-info').includes('Alpha first'), 'the confirmed save is kept');

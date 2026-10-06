@@ -1,25 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { creationTargetSchema, issueCreateSchema, implementationStatuses, wayfindingStatuses, wayfindingType,
   type CreationTarget, type Issue, type IssueCreate } from '../server/board.js';
 import { resolveDependencies } from '../server/dependencies.js';
+import { diskKey, useDiskQuery } from './ClientState';
 import { SafeMarkdown } from './SafeMarkdown';
 
 type Values = { target: string; title: string; status: string; type: 'research' | 'prototype' | 'grilling' | 'task'; body: string; dependencies: string[] };
 const defaults: Values = { target: '', title: '', status: 'needs-triage', type: 'task', body: '', dependencies: [] };
 const targetKey = (target: CreationTarget) => JSON.stringify([target.container, target.workflow]);
 
-export function IssueCreator({ visible, issues, saving, onClose, onCreate, onReload }: {
-  visible: boolean; issues: Issue[]; saving: boolean; onClose: () => void;
+export function IssueCreator({ visible, issues, saving, onClose, onCreate, onReload, onDirty }: {
+  onDirty: (dirty: boolean) => void; visible: boolean; issues: Issue[]; saving: boolean; onClose: () => void;
   onCreate: (request: IssueCreate) => Promise<void>; onReload: () => Promise<void>;
 }) {
+  const targetQuery = useDiskQuery([...diskKey, 'targets'], '/api/creation-targets', z.array(creationTargetSchema));
   const [targets, setTargets] = useState<CreationTarget[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
   const [outdated, setOutdated] = useState(false);
-  const epoch = useRef(0);
   const { register, control, watch, setValue, getValues, reset, handleSubmit, formState: { isDirty } } = useForm<Values>({ defaultValues: defaults });
   const values = watch();
   const selected = targets?.find((target) => targetKey(target) === values.target);
@@ -30,9 +31,8 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
     setLoading(true);
     try {
       if (review) await onReload();
-      const response = await fetch('/api/creation-targets');
-      if (!response.ok) throw new Error('Cannot load creation folders. Check the local server; your draft is retained.');
-      const latest = z.array(creationTargetSchema).parse(await response.json());
+      const latest = (await targetQuery.refetch()).data;
+      if (!latest) throw new Error('Cannot load creation folders. Your draft is retained.');
       setTargets(latest);
       setOutdated(false);
       if (!getValues('target') && latest[0]) {
@@ -44,33 +44,13 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
     finally { setLoading(false); }
   }
   useEffect(() => { if (visible && targets === null && !loading) void loadTargets(); }, [visible]);
-  // After the board changes outside the app, an untouched form follows the latest folders. Once the user has
-  // entered anything, the loaded snapshot stays put (stale creation is rejected) and the change is flagged.
   useEffect(() => {
-    if (!visible || targets === null || loading) return;
-    const current = epoch.current;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch('/api/creation-targets');
-        if (!response.ok) return;
-        const latest = z.array(creationTargetSchema).parse(await response.json());
-        if (cancelled || current !== epoch.current) return;
-        if (!isDirty) {
-          setTargets(latest);
-          const chosen = getValues('target');
-          if (chosen && !latest.some((target) => targetKey(target) === chosen)) {
-            setValue('target', ''); setValue('dependencies', []);
-          }
-          setOutdated(false);
-        } else {
-          const same = latest.find((target) => selected && targetKey(target) === targetKey(selected));
-          setOutdated(!!selected && same?.revision !== selected.revision);
-        }
-      } catch { /* The explicit reload action reports failures. */ }
-    })();
-    return () => { cancelled = true; };
-  }, [issues, visible]);
+    const latest = targetQuery.data;
+    if (!latest) return;
+    if (!isDirty) { setTargets(latest); setOutdated(false); }
+    else { const same = latest.find((target) => selected && targetKey(target) === targetKey(selected)); setOutdated(!!selected && same?.revision !== selected.revision); }
+  }, [targetQuery.data]);
+  useEffect(() => { onDirty(isDirty); }, [isDirty, onDirty]);
   useEffect(() => {
     if (!isDirty) return;
     const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -85,14 +65,14 @@ export function IssueCreator({ visible, issues, saving, onClose, onCreate, onRel
     if (!request.success) { setMessage(request.error.issues.map((issue) => issue.message).join('; ')); return; }
     try {
       await onCreate(request.data);
-      epoch.current += 1; setOutdated(false);
-      reset(defaults); setTargets(null); setMessage(null); setPreview(false); onClose();
+      setOutdated(false);
+      reset(defaults); setTargets(null); setMessage(null); setPreview(false);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Creation failed. Your draft is retained.'); }
   }
   return <section hidden={!visible} className="issue-creator" aria-label="Create issue" aria-busy={visible && loading}>
     {visible && <>
       <h2>Create issue</h2>
-      <p className="muted">Create in an existing folder with a recognized workflow. Drafts stay in this tab when you close this form.</p>
+      <p className="muted">Create in an existing folder with a recognized workflow. Unsaved changes remain only while this form is open.</p>
       <button disabled={saving || loading} onClick={onClose}>Close creation</button>
       {message && <p role="alert">{message}</p>}
       {outdated && <p role="alert">The selected folder changed outside the app. Your draft is kept, but creating from the old snapshot will be rejected. Use Reload containers, keep draft to review the latest issues and dependencies first.</p>}

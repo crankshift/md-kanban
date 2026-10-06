@@ -1,13 +1,23 @@
 import { useEffect, useRef } from 'react';
 import { SafeMarkdown } from './SafeMarkdown';
-import { IssueEditor, type IssueDraft, type IssueEditorActions } from './IssueEditor';
+import { IssueEditor, type IssueDraft, type EditorActions } from './IssueEditor';
 import type { Issue } from '../server/board.js';
 import { DependencyList } from './Dependencies';
 import { StatusControl, type StatusControls } from './StatusControl';
 
-export function IssueDetails({ issue, issues, onSelect, onClose, onStatusChange, savingId, editor, notice, onLink }: StatusControls & {
-  issue: Issue; issues: Issue[]; onSelect: (id: string) => void; onClose: () => void;
-  editor?: IssueEditorActions | undefined; notice?: string | null | undefined; onLink?: ((from: string, href: string) => void) | undefined;
+export function IssueDetails({ issue: currentIssue, id, issues, onSelect, onClose, onStatusChange, savingId, editor, notice, onLink }: StatusControls & {
+  id: string; issue: Issue | undefined; issues: Issue[]; onSelect: (id: string) => void; onClose: () => void;
+  editor?: EditorActions | undefined; notice?: string | null | undefined; onLink?: ((from: string, href: string) => void) | undefined;
+}) {
+  const last = useRef(currentIssue);
+  if (currentIssue) last.current = currentIssue;
+  const issue = currentIssue ?? (last.current ? { ...last.current, content: null, revision: null, diagnostics: ['The file was removed, renamed, or moved outside the app. Copy your draft before closing.'] } : undefined);
+  if (!issue) return <MissingIssue id={id} draft={undefined} onClose={onClose} onDiscard={onClose} />;
+  return <OpenedIssue issue={issue} issues={issues} onSelect={onSelect} onClose={onClose} onStatusChange={onStatusChange} savingId={savingId} editor={editor} notice={notice} onLink={onLink} />;
+}
+function OpenedIssue({ issue, issues, onSelect, onClose, onStatusChange, savingId, editor, notice, onLink }: StatusControls & {
+  issue: Issue; issues: Issue[]; onSelect: (id: string) => void; onClose: () => void; editor?: EditorActions | undefined;
+  notice?: string | null | undefined; onLink?: ((from: string, href: string) => void) | undefined;
 }) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { panel.current?.focus(); panel.current?.scrollTo?.(0, 0); }, [issue.id]);
