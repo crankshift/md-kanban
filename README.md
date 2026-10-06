@@ -4,7 +4,23 @@ A Kanban board for Markdown tickets created with [Matt Pocock's agent skills](ht
 
 Open your project's tickets in a browser, see what needs attention, follow dependencies, and update tickets alongside your coding agent. Your Markdown files remain the source of truth.
 
-## Open your tickets
+## Run the local app today
+
+The CLI and React shell are available from this checkout. Issue loading and board features follow in later slices.
+
+Use Node 22.12 or newer and pnpm 11.21.0:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm start --no-open ./
+```
+
+Open the printed loopback URL. Omit `--no-open` to launch your default browser automatically; if opening fails, use the printed URL manually. Keep the terminal running, and press Ctrl+C to stop. An omitted folder defaults to the caller’s current directory. Relative folders resolve from that directory; invalid or inaccessible folders fail before startup.
+
+To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). No registry publication is needed.
+
+## Intended registry usage (unreleased)
 
 **Under development:** the app and CLI are not released yet. The commands below describe how you will use md-kanban once it is published.
 

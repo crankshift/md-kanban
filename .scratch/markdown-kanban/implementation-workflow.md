@@ -10,7 +10,7 @@ Use `feat/md-kanban-v1` for every issue below. Stay in the existing checkout; do
 
 The checkboxes below track implementation completion for this effort. They do not introduce a new ticket status or product lifecycle; the issues retain the repository's triage vocabulary.
 
-- [ ] 01 — Launch the packaged local web app
+- [x] 01 — Launch the packaged local web app
 - [ ] 02 — Discover tickets and render read-only boards
 - [ ] 03 — Read issue details, dependencies, and search results
 - [ ] 04 — Persist status changes without overwriting other edits
