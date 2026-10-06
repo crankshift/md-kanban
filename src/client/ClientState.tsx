@@ -1,3 +1,5 @@
+import { Provider } from './components/ui/provider';
+import { Toaster } from './components/ui/toaster';
 import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createBrowserRouter } from 'react-router';
@@ -42,5 +44,5 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('focus', refresh);
   }, [client]);
   useEffect(() => () => client.clear(), [client]);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return <Provider defaultTheme="system" enableSystem><QueryClientProvider client={client}>{children}<Toaster /></QueryClientProvider></Provider>;
 }

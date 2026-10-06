@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, realpath, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +26,9 @@ test('installed tarball serves its own frontend against a separate folder and sh
   const { packageManager } = JSON.parse(await readFile(join(checkout, 'package.json'), 'utf8'));
   await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true, packageManager }));
   execFileSync('pnpm', ['add', '--offline', '--ignore-scripts', tarball], { cwd: installation, stdio: 'pipe' });
+  const packageRoot = join(installation, 'node_modules/md-kanban');
+  const packageFiles = await readdir(packageRoot, { recursive: true });
+  assert.ok(!packageFiles.some((path) => /(?:^|[/\\])prototype(?:[/\\]|$)|prototype-demo/.test(path)), 'packed package contains no prototype files');
   const packed = JSON.parse(await readFile(join(installation, 'node_modules/md-kanban/package.json'), 'utf8'));
   assert.deepEqual(Object.keys(packed.dependencies).sort(), ['open', 'zod'], 'client packages are bundled build dependencies');
   const cli = process.platform === 'win32'
@@ -79,7 +82,9 @@ test('installed tarball serves its own frontend against a separate folder and sh
   for (const [, asset] of assets) {
     const response = await fetch(`${url}${asset}`);
     assert.equal(response.status, 200);
-    assert.ok((await response.text()).length > 0);
+    const content = await response.text();
+    assert.ok(content.length > 0);
+    if (asset.endsWith('.js')) assert.doesNotMatch(content, /mountPrototype|useProtoBoard|simulateAgentEdit|Previous variant|PROTOTYPE — throwaway/, 'production bundle excludes prototype code');
   }
   assert.equal((await fetch(`${url}/package.json`)).status, 404);
   const deep = await fetch(`${url}/board/alpha?issue=01-example.md`);

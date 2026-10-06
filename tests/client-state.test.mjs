@@ -11,17 +11,17 @@ const files = {
   '.scratch/alpha/issues/02-other.md': '# 02: Other\n\nStatus: needs-info\n',
   '.scratch/alpha/spec.md': '# Specification\n\nOriginal spec.\n',
 };
-const button = (ui, label) => [...ui.document.querySelectorAll('button')].find((node) => node.textContent === label);
+const button = (ui, label) => [...ui.document.querySelectorAll('button')].find((node) => (node.getAttribute('aria-label') ?? node.textContent) === label);
 const field = (ui, label) => ui.document.querySelector(`[aria-label="${label}"]`);
-const card = (ui) => ui.document.querySelector(`[data-issue-id="${path}"]`).closest('.card');
+const card = (ui) => ui.document.querySelector(`button[aria-label^="Open #"][aria-label$=" · ${path}"]`).closest('article[aria-label^="Issue #"]');
 
 test('a shared URL restores navigation and browser Back closes and returns through followed links', async (t) => {
   const params = new URLSearchParams({ workflow: 'implementation', query: 'first', location: '.scratch', feature: JSON.stringify(['.scratch', 'alpha']), issue: path });
   const ui = await renderBoard(t, files, true, { address: `http://localhost/board?${params}` });
   assert.equal(field(ui, 'Issue title').value, 'First');
   assert.equal(ui.document.querySelector('input[type="search"]').value, 'first');
-  assert.equal(ui.document.querySelectorAll('.card').length, 1);
-  await ui.click(ui.document.querySelector('[aria-label="Close issue details"]'));
+  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 1);
+  await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
   assert.equal(field(ui, 'Issue title'), null);
   await ui.click(card(ui).querySelector('button'));
   await act(async () => { ui.document.defaultView.history.back(); await new Promise((resolve) => setTimeout(resolve, 150)); });
@@ -38,10 +38,10 @@ test('browser Back asks before discarding an open draft and cancellation preserv
   assert.equal(confirmations, 1);
   assert.equal(field(ui, 'Issue title').value, 'My draft');
   ui.document.defaultView.confirm = () => true;
-  await ui.click(ui.document.querySelector('[aria-label="Close issue details"]'));
+  await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
   await ui.click(card(ui).querySelector('button'));
   assert.equal(field(ui, 'Issue title').value, 'First');
-  assert.equal(ui.document.querySelector('.draft-list'), null);
+  assert.equal(ui.document.querySelector('[aria-label="Retained drafts"]'), null);
 });
 
 test('a pending status appears immediately then rolls back on failure', async (t) => {
@@ -51,12 +51,12 @@ test('a pending status appears immediately then rolls back on failure', async (t
   const gate = new Promise((_, no) => { reject = no; });
   globalThis.fetch = (url, options) => url === '/api/status' ? gate : transport(url, options);
   t.after(() => { globalThis.fetch = transport; });
-  await ui.change(card(ui).querySelector('select'), 'wontfix');
-  assert.equal(card(ui).querySelector('select').value, 'wontfix');
+  await ui.change(card(ui).querySelector('input[role="combobox"]'), 'wontfix');
+  assert.equal(card(ui).querySelector('input[role="combobox"]').value, 'wontfix');
   assert.match(await readFile(join(ui.folder, path), 'utf8'), /ready-for-agent/);
   await act(async () => reject(new Error('Offline write')));
   await ui.settled();
-  assert.equal(card(ui).querySelector('select').value, 'ready-for-agent');
+  assert.equal(card(ui).querySelector('input[role="combobox"]').value, 'ready-for-agent');
   assert.match(ui.document.body.textContent, /Status was not saved.*Offline write/);
 });
 
@@ -70,12 +70,12 @@ test('a failed save after closing offers to reopen the submitted values', async 
   globalThis.fetch = (url, options) => url === '/api/edit' ? gate : transport(url, options);
   t.after(() => { globalThis.fetch = transport; });
   await ui.click(button(ui, 'Save issue'));
-  assert.equal(card(ui).querySelector('.card-title').textContent, 'Submitted title');
-  await ui.click(ui.document.querySelector('[aria-label="Close issue details"]'));
+  assert.equal(card(ui).querySelector('button[aria-label^="Open #"]').textContent, 'Submitted title');
+  await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
   assert.equal(field(ui, 'Issue title'), null);
   await act(async () => reject(new Error('Save offline')));
   await ui.settled();
-  await ui.change(card(ui).querySelector('select'), 'needs-info');
+  await ui.change(card(ui).querySelector('input[role="combobox"]'), 'needs-info');
   await ui.settled();
   await ui.click(button(ui, 'Reopen editor with submitted changes'));
   assert.equal(field(ui, 'Issue title').value, 'Submitted title');
@@ -93,12 +93,12 @@ test('creation is optimistic without a number until confirmed and failure remove
   globalThis.fetch = (url, options) => url === '/api/create' ? gate : transport(url, options);
   t.after(() => { globalThis.fetch = transport; });
   await ui.click(button(ui, 'Create issue'));
-  const pending = ui.document.querySelector('[data-issue-id="creating"]').closest('.card');
-  assert.equal(pending.querySelector('.issue-number').textContent, 'Creating…');
-  assert.doesNotMatch(pending.querySelector('.issue-number').textContent, /#/);
+  const pending = ui.document.querySelector('button[aria-label^="Creating:"]').closest('article[aria-label^="Issue #"]');
+  assert.equal(pending.querySelector('[aria-label="Issue number"]').textContent, 'Creating…');
+  assert.doesNotMatch(pending.querySelector('[aria-label="Issue number"]').textContent, /#/);
   await act(async () => reject(new Error('Creation offline')));
   await ui.settled();
-  assert.equal(ui.document.querySelector('[data-issue-id="creating"]'), null);
+  assert.equal(ui.document.querySelector('button[aria-label^="Creating:"]'), null);
   assert.equal(field(ui, 'New issue title').value, 'New item');
 });
 
@@ -126,7 +126,7 @@ test('overlapping fields require extra confirmation before reapplying and docume
 
 test('the production App keeps an open draft through board and context refetch failures', async (t) => {
   const ui = await renderBoard(t, files, true, { application: true });
-  await ui.until(() => ui.document.querySelector(`[data-issue-id="${path}"]`), 'application board');
+  await ui.until(() => ui.document.querySelector(`button[aria-label^="Open #"][aria-label$=" · ${path}"]`), 'application board');
   await ui.click(card(ui).querySelector('button'));
   await ui.change(field(ui, 'Issue title'), 'Protected draft');
   const title = field(ui, 'Issue title');
@@ -137,10 +137,10 @@ test('the production App keeps an open draft through board and context refetch f
   };
   t.after(() => { globalThis.fetch = transport; });
   await act(async () => { ui.document.defaultView.dispatchEvent(new ui.document.defaultView.Event('focus')); });
-  await ui.until(() => /Could not read the latest issues/.test(ui.document.body.textContent), 'board refresh failure');
+  await ui.until(() => /outdated/.test(ui.document.body.textContent), 'board refresh failure');
   assert.equal(field(ui, 'Issue title'), title, 'the production entry point leaves the form mounted');
   assert.equal(title.value, 'Protected draft');
-  assert.match(ui.document.body.textContent, /Could not refresh the local session/);
+  assert.match(ui.document.body.textContent, /outdated/);
   globalThis.fetch = transport;
   await ui.click(button(ui, 'Reload issues, keep draft'));
   await ui.settled();

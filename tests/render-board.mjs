@@ -51,7 +51,12 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
   const folder = await fixture(t, files);
   const data = await discoverIssues(folder);
   const dom = new JSDOM('<div id="root"></div>', { url: address });
-  const globals = { window: dom.window, location: dom.window.location, history: dom.window.history, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  dom.window.matchMedia = (query) => ({ matches: false, media: query, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+  dom.window.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+  dom.window.cancelAnimationFrame = clearTimeout;
+  dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  dom.window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  const globals = { CSS: { escape: (value) => value.replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char}`) }, getComputedStyle: dom.window.getComputedStyle, Node: dom.window.Node, Element: dom.window.Element, HTMLInputElement: dom.window.HTMLInputElement, MutationObserver: dom.window.MutationObserver, requestAnimationFrame: dom.window.requestAnimationFrame, cancelAnimationFrame: dom.window.cancelAnimationFrame, ResizeObserver: dom.window.ResizeObserver, window: dom.window, location: dom.window.location, history: dom.window.history, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
   let sessionToken;
   let server;
   const sources = [];
@@ -69,7 +74,7 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
   dom.window.confirm = () => true;
   Object.assign(globalThis, globals);
   const { createRoot } = await import('react-dom/client');
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs'] } });
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs', '@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono'] } });
   const { Board } = await vite.ssrLoadModule('/Board.tsx');
   const { App } = await vite.ssrLoadModule('/App.tsx');
   const { ClientProviders, createClientRouter } = await vite.ssrLoadModule('/ClientState.tsx');
@@ -81,7 +86,7 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
     await unmount();
     router.dispose();
     // Let queued router/query notifications settle while their browser globals still exist.
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
     await vite.close();
     dom.window.close();
     for (const [key, descriptor] of originals) {
@@ -93,6 +98,16 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
   await act(async () => root.render(application ? createElement(StrictMode, {}, tree) : tree));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
   return {
+    options: async (element) => {
+      assert.ok(element, 'combobox exists');
+      const statusTrigger = [...dom.window.document.querySelectorAll('button[aria-label]')].find((button) => button.getAttribute('aria-label') === element.getAttribute('aria-label'));
+      if (statusTrigger && element.closest('[hidden]')) await act(async () => { statusTrigger.click(); await new Promise((resolve) => setTimeout(resolve, 100)); });
+      await act(async () => { element.parentElement.querySelector('button').click(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+      const list = dom.window.document.getElementById(element.getAttribute('aria-controls'));
+      const names = [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+      await act(async () => { element.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+      return names;
+    },
     folder, document: dom.window.document, sources, server, unmount,
     until: async (predicate, label, timeout = 8000) => {
       const deadline = Date.now() + timeout;
@@ -101,17 +116,31 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
         await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
       }
     },
-    click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => { element.click(); await new Promise((resolve) => setTimeout(resolve, 100)); }); },
+    click: async (element) => { assert.ok(element, 'click target exists'); await act(async () => { element.click(); await new Promise((resolve) => setTimeout(resolve, 250)); }); },
     change: async (element, value) => {
       assert.ok(element, 'input exists');
+      if (element.getAttribute('role') === 'combobox') {
+        const statusTrigger = [...dom.window.document.querySelectorAll('button[aria-label]')].find((button) => button.getAttribute('aria-label') === element.getAttribute('aria-label'));
+        if (statusTrigger && element.closest('[hidden]')) await act(async () => { statusTrigger.click(); await new Promise((resolve) => setTimeout(resolve, 100)); });
+        for (let attempt = 0; element.disabled && attempt < 100; attempt++) await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+        assert.equal(element.disabled, false, 'picker is ready');
+        const trigger = element.parentElement.querySelector('button');
+        await act(async () => { trigger.click(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+        const options = [...dom.window.document.getElementById(element.getAttribute('aria-controls')).querySelectorAll('[role="option"]')];
+        const option = options.find((node) => node.textContent === value);
+        assert.ok(option, `available choice: ${value}`);
+        await act(async () => { option.click(); await new Promise((resolve) => setTimeout(resolve, 100)); });
+        return;
+      }
       await act(async () => {
         const prototype = element.tagName === 'SELECT' ? dom.window.HTMLSelectElement.prototype : element.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype;
         Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
         element.dispatchEvent(new dom.window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 250));
       });
     },
     settled: async () => {
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
       for (let attempt = 0; attempt < 100 && dom.window.document.querySelector('[aria-busy="true"]'); attempt++) {
         await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
       }

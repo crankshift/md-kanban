@@ -1,3 +1,4 @@
+import { Prose } from './components/ui/prose';
 import { useEffect, useId, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -43,7 +44,7 @@ export function SafeMarkdown({ children, fragment, onLocalLink, onMissingFragmen
     }
     if (fragment) scrollToFragment(fragment);
   }, [fragment, children]);
-  return <div ref={container} className="markdown-content">
+  return <Prose ref={container} maxW="full" css={{ "& code, & pre": { fontFamily: "body" } }}>
     <Markdown skipHtml remarkPlugins={[remarkGfm]} components={{
       h1: 'h3',
       a: ({ href, children: label }) => {
@@ -57,5 +58,5 @@ export function SafeMarkdown({ children, fragment, onLocalLink, onMissingFragmen
         return <a href={href} onClick={(event) => { event.preventDefault(); onLocalLink(href); }}>{label}</a>;
       },
     }}>{children}</Markdown>
-  </div>;
+  </Prose>;
 }

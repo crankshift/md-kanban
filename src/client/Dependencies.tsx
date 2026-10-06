@@ -1,15 +1,16 @@
+import { Badge, HStack } from '@chakra-ui/react';
 import { resolveDependencies, type Dependency } from '../server/dependencies.js';
 import type { Issue } from '../server/board.js';
 
 export function DependencyIndicators({ dependencies }: { dependencies: Dependency[] }) {
   const count = (state: string) => dependencies.filter((entry) => entry.kind === 'linked' && entry.state === state).length;
   const attention = dependencies.filter((entry) => entry.kind !== 'linked' || entry.state === 'unknown').length;
-  return <div className="dependency-indicators">
-    {count('advisory') > 0 && <span>{count('advisory')} advisory {count('advisory') === 1 ? 'dependency' : 'dependencies'}</span>}
-    {count('blocked') > 0 && <span className="blocker">{count('blocked')} unresolved {count('blocked') === 1 ? 'blocker' : 'blockers'}</span>}
-    {count('resolved') > 0 && <span>{count('resolved')} resolved {count('resolved') === 1 ? 'prerequisite' : 'prerequisites'}</span>}
-    {attention > 0 && <span className="dependency-warning">{attention} dependency {attention === 1 ? 'reference needs' : 'references need'} attention</span>}
-  </div>;
+  return <HStack gap="1" flexWrap="wrap" aria-label="Dependency indicators">
+    {count('advisory') > 0 && <Badge size="xs">{count('advisory')} advisory {count('advisory') === 1 ? 'dependency' : 'dependencies'}</Badge>}
+    {count('blocked') > 0 && <Badge size="xs" colorPalette="yellow">{count('blocked')} unresolved {count('blocked') === 1 ? 'blocker' : 'blockers'}</Badge>}
+    {count('resolved') > 0 && <Badge size="xs">{count('resolved')} resolved {count('resolved') === 1 ? 'prerequisite' : 'prerequisites'}</Badge>}
+    {attention > 0 && <Badge size="xs" colorPalette="yellow">{attention} dependency {attention === 1 ? 'reference needs' : 'references need'} attention</Badge>}
+  </HStack>;
 }
 
 export function DependencyList({ issue, issues, onSelect }: { issue: Issue; issues: Issue[]; onSelect: (id: string) => void }) {
@@ -20,7 +21,7 @@ export function DependencyList({ issue, issues, onSelect }: { issue: Issue; issu
       ? 'Advisory: only valid wayfinding prerequisites in resolved stop blocking. Unknown prerequisites need attention.'
       : 'Advisory: triage readiness does not establish implementation completion.'}</p>
     <p className="path">Blocked by: {issue.dependencyText ?? '(not specified)'}</p>
-    {dependencies.length === 0 ? <p>No dependencies listed.</p> : <ul className="dependency-list">
+    {dependencies.length === 0 ? <p>No dependencies listed.</p> : <ul aria-label="Dependencies">
       {dependencies.map((dependency, index) => <li key={index}>
         {dependency.kind === 'linked' ? <>
           <button className="text-link" onClick={() => onSelect(dependency.target.id)}>#{dependency.target.number}: {dependency.target.title}</button>
@@ -30,7 +31,7 @@ export function DependencyList({ issue, issues, onSelect }: { issue: Issue; issu
             dependency.state === 'resolved' ? 'Resolved prerequisite · no longer blocks' : 'Unknown prerequisite state · completion cannot be determined'}</span>
         </> : <>
           <strong>{dependency.reference || '(empty reference)'}</strong>
-          <span className="dependency-warning">{dependency.kind === 'missing' ? 'Missing issue in this feature/location.' :
+          <span>{dependency.kind === 'missing' ? 'Missing issue in this feature/location.' :
             dependency.kind === 'ambiguous' ? 'Ambiguous number; multiple issues in this feature/location.' : 'Unsupported dependency reference; expected an issue number with an optional title.'}</span>
           {dependency.kind === 'ambiguous' && <ul>{dependency.candidates.map((candidate) => <li className="path" key={candidate.id}>{candidate.path}</li>)}</ul>}
         </>}
