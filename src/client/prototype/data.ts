@@ -50,6 +50,38 @@ export function filterIssues(issues: Issue[], workflow: Workflow, filters: Filte
   };
 }
 
+// ── Fixing unrecognized issue candidates: rewrite only the metadata lines the user chose ──────────────
+
+export const wayfindingTypes = ['research', 'prototype', 'grilling', 'task'] as const;
+const metadataLine = (key: string) => new RegExp(`^([ \\t]*(?:\\*\\*${key}:\\*\\*|\\*\\*${key}\\*\\*:|${key}:)[ \\t]*)(.*)$`, 'im');
+export const readMetadata = (content: string, key: string): string | null => content.match(metadataLine(key))?.[2]?.trim() ?? null;
+
+export function setMetadata(content: string, key: string, value: string | null): string {
+  const line = metadataLine(key);
+  if (value === null) return content.replace(new RegExp(`${line.source}\\r?\\n?`, 'im'), '');
+  if (line.test(content)) return content.replace(line, (_match, prefix: string) => `${prefix}${value}`);
+  const anchor = /^[ \t]*(?:\*\*)?(?:Status|Type|Blocked by)\b.*$/im;
+  if (anchor.test(content)) return content.replace(anchor, (existing) => `${existing}\n${key}: ${value}`);
+  return content.replace(/^(#[ \t].*)$/m, (heading) => `${heading}\n\n${key}: ${value}`);
+}
+
+// The real server re-parses the whole file; the prototype only re-checks the status and type rules it can fix.
+const statusRules = /^(Missing status|Unknown status|Workflow cannot be determined|Unknown wayfinding type|Ambiguous workflow)/;
+function recheck(issue: Issue, content: string): Issue {
+  const status = readMetadata(content, 'Status');
+  const type = readMetadata(content, 'Type');
+  const implementation = (implementationStatuses as readonly string[]).includes(status ?? '');
+  const wayfinding = ['open', 'claimed', 'resolved'].includes(status ?? '');
+  const diagnostics = issue.diagnostics.filter((reason) => !statusRules.test(reason));
+  if (!status) diagnostics.push('Missing status.');
+  else if (!implementation && !wayfinding) diagnostics.push(`Unknown status: ${status}.`);
+  if (type !== null && !(wayfindingTypes as readonly string[]).includes(type)) diagnostics.push(`Unknown wayfinding type: ${type || '(empty)'}.`);
+  if (implementation && type !== null) diagnostics.push('Ambiguous workflow: implementation status with wayfinding Type metadata.');
+  if (!implementation && !wayfinding) diagnostics.push('Workflow cannot be determined from a supported status.');
+  return { ...issue, content, status, type, diagnostics, revision: randomRevision(),
+    workflow: diagnostics.length ? null : implementation ? 'implementation' : 'wayfinding' };
+}
+
 export type ProtoBoard = ReturnType<typeof useProtoBoard>;
 
 export function useProtoBoard(options: { failWrites: boolean; onReopen: (recovery: Recovery) => void }) {
@@ -158,6 +190,22 @@ export function useProtoBoard(options: { failWrites: boolean; onReopen: (recover
     });
   }
 
+  async function repair(id: string, content: string) {
+    const before = issues.find((issue) => issue.id === id);
+    if (!before) return;
+    const after = recheck(before, content);
+    replace(id, after);
+    if (!(await roundTrip(id))) {
+      replace(id, before);
+      toaster.create({ type: 'error', closable: true, duration: Infinity, title: `${label(before)} wasn't fixed`,
+        description: 'The file changed on disk first. Review the latest version and try again.' });
+      return;
+    }
+    toaster.create(after.diagnostics.length
+      ? { type: 'warning', title: `${label(before)} still needs attention`, description: after.diagnostics.join(' ') }
+      : { type: 'success', title: `${label(before)} is on the ${after.workflow} board`, description: `Status: ${after.status}` });
+  }
+
   // Stands in for an agent rewriting a file while the board is open.
   function simulateAgentEdit(id: string | null) {
     const target = issues.find((issue) => issue.id === id) ?? issues.find((issue) => issue.workflow && issue.content);
@@ -167,5 +215,5 @@ export function useProtoBoard(options: { failWrites: boolean; onReopen: (recover
     toaster.create({ type: 'info', title: `${label(target)} changed on disk`, description: 'Simulated agent edit.' });
   }
 
-  return { issues, warnings, documents, targets, folder, loaded, live, pending, moveStatus, saveEdit, addComment, create, simulateAgentEdit };
+  return { issues, warnings, documents, targets, folder, loaded, live, pending, moveStatus, saveEdit, addComment, create, repair, simulateAgentEdit };
 }

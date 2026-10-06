@@ -21,6 +21,12 @@ if (!folder) {
   const files = {
     '.scratch/markdown-kanban/issues/10-polish-card-density.md':
       '# 10: Polish card density\n\n**Status:** in-progress\n\n## Outcome\n\nCards fit more issues per column.\n',
+    '.scratch/board-redesign/issues/06-pick-a-typeface.md':
+      '# 06: Pick a typeface\n\nType: research\nStatus: ready-for-agent\n\nCompare three families at small sizes.\n',
+    '.scratch/board-redesign/issues/07-explore-density.md':
+      '# 07: Explore card density\n\nType: spike\nStatus: open\n\nHow many cards fit before scanning gets hard?\n',
+    'docs/billing-export/tickets/05-email-the-export.md':
+      '# 05: Email the export\n\n## Outcome\n\nAccounting receives the CSV by email every month.\n',
     '.scratch/board-redesign/map.md':
       '# Board redesign\n\n## Notes\n\nWhich layout lets people scan many features at once?\n\n## Decisions so far\n\n- Detail view must not squeeze the columns. See [the spec](../markdown-kanban/spec.md).\n\n## Fog\n\n- Is a list view more useful than columns for large repos?\n',
     '.scratch/board-redesign/issues/01-survey-existing-boards.md':

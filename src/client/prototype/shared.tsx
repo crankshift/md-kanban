@@ -1,7 +1,7 @@
 // PROTOTYPE — throwaway. Pieces shared by the variants; each variant owns its own layout and detail surface.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Alert, Badge, Box, Breadcrumb, Button, chakra, Code, Collapsible, Combobox, Dialog, EmptyState, Field, Flex, HStack, Icon, IconButton,
+  Alert, Badge, Box, Breadcrumb, Button, chakra, Checkbox, Code, Collapsible, Combobox, Dialog, EmptyState, Field, Flex, HStack, Icon, IconButton,
   Input, Menu, Popover, Portal, Separator, Spinner, Stack, Status, Tabs, Text, Textarea, useFilter, useListCollection,
 } from '@chakra-ui/react';
 import { DragDropProvider, useDraggable, useDroppable } from '@dnd-kit/react';
@@ -16,7 +16,7 @@ import { SafeMarkdown } from '../SafeMarkdown';
 import { Prose } from '../components/ui/prose';
 import { toaster } from '../components/ui/toaster';
 import { Tooltip } from '../components/ui/tooltip';
-import { bodyOf, commentsOf, scopeLabel, statusesFor, type EditValues, type ProtoBoard, type Recovery } from './data';
+import { bodyOf, commentsOf, readMetadata, scopeLabel, setMetadata, statusesFor, wayfindingTypes, type EditValues, type ProtoBoard, type Recovery } from './data';
 
 // ── Autocomplete select: every value picker is a filterable combobox, never a native <select> ─────────
 
@@ -62,8 +62,10 @@ export function MarkdownField({ value, onChange, label, from, height = '22rem', 
   const [tab, setTab] = useState('write');
   return <Tabs.Root value={tab} onValueChange={(event) => setTab(event.value)} size="sm" variant="enclosed">
     <Tabs.List><Tabs.Trigger value="write">Write</Tabs.Trigger><Tabs.Trigger value="preview">Preview</Tabs.Trigger></Tabs.List>
-    <Tabs.Content value="write" pt="2"><Textarea aria-label={label} fontFamily="mono" fontSize="sm" h={height} resize="none" placeholder={placeholder}
-      value={value} onChange={(event) => onChange(event.target.value)} /></Tabs.Content>
+    {/* Both panels: identical block frame. A textarea is inline by default and would add baseline space below it. */}
+    <Tabs.Content value="write" pt="2"><Box h={height}>
+      <Textarea display="block" h="full" aria-label={label} fontFamily="mono" fontSize="sm" resize="none" placeholder={placeholder}
+        value={value} onChange={(event) => onChange(event.target.value)} /></Box></Tabs.Content>
     <Tabs.Content value="preview" pt="2"><Box h={height} overflowY="auto" borderWidth="1px" borderColor="border" rounded="l2" px="3" py="1">
       <MarkdownProse from={from}>{value || '_Nothing to preview._'}</MarkdownProse></Box></Tabs.Content>
   </Tabs.Root>;
@@ -338,7 +340,8 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
   const conflict = !!editing && editing.base.revision !== issue.revision;
   const theirs = conflict && baseValues ? changedFields(valuesOf(issue), baseValues) : [];
   const overlap = mine.filter((field) => theirs.includes(field));
-  const dirty = mine.length > 0 || comment.trim().length > 0;
+  const [fixDirty, setFixDirty] = useState(false);
+  const dirty = mine.length > 0 || comment.trim().length > 0 || fixDirty;
   useEffect(() => { onDirty(dirty); }, [dirty]);
   const titleError = editing && !titleSchema.safeParse(editing.values.title).success ? 'Enter a single-line title.' : null;
   const set = (patch: Partial<EditValues>) => setEditing((current) => current && { ...current, values: { ...current.values, ...patch } });
@@ -357,7 +360,8 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
 
   const meta = <Stack gap="4" fontSize="sm">
     <Stack gap="1"><Text fontSize="xs" color="fg.muted">Status</Text>
-      {issue.workflow ? <Box><StatusMenu issue={issue} board={board} /></Box> : <Text color="fg.warning">Unrecognized</Text>}</Stack>
+      {issue.workflow ? <Box><StatusMenu issue={issue} board={board} /></Box>
+        : <Text color="fg.warning">{issue.content && readMetadata(issue.content, 'Status') ? `${readMetadata(issue.content, 'Status')} (not recognized)` : 'Missing'}</Text>}</Stack>
     <Stack gap="1"><Text fontSize="xs" color="fg.muted">{scopeLabel(issue.workflow)}</Text><Text>{issue.feature}</Text></Stack>
     <Stack gap="1"><Text fontSize="xs" color="fg.muted">Location</Text><Text fontFamily="mono" fontSize="xs">{issue.location}</Text></Stack>
     <Stack gap="1"><Text fontSize="xs" color="fg.muted">File</Text><Text fontFamily="mono" fontSize="xs" wordBreak="break-all">{issue.path}</Text></Stack>
@@ -409,11 +413,7 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
         </HStack>
       </Stack>
     : issue.diagnostics.length > 0
-      ? <Stack gap="3"><Alert.Root status="warning" size="sm"><Alert.Indicator /><Alert.Content>
-          <Alert.Title>This file can't be placed on the board</Alert.Title>
-          <Alert.Description><Stack as="ul" gap="0.5" ps="4" listStyleType="disc">{issue.diagnostics.map((reason) => <li key={reason}>{reason}</li>)}</Stack></Alert.Description>
-        </Alert.Content></Alert.Root>
-        <Code as="pre" display="block" whiteSpace="pre-wrap" p="3" fontSize="xs">{issue.content ?? 'The file could not be read.'}</Code></Stack>
+      ? <FixPanel issue={issue} board={board} onDirty={setFixDirty} />
       : <MarkdownProse from={issue.path} onLink={onLink}>{bodyOf(issue)}</MarkdownProse>;
 
   const comments = editable && <Stack gap="3">
@@ -434,6 +434,90 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
     {body}
     {comments}
     <Text fontFamily="mono" fontSize="xs" color="fg.subtle">{issue.path}</Text>
+  </Stack>;
+}
+
+// ── Fixing an unrecognized issue candidate: explicit choices only, never a guess ─────────────────────
+
+const statusProblem = /^(Missing status|Unknown status|Workflow cannot be determined)/;
+const typeProblem = /^Unknown wayfinding type/;
+const ambiguousProblem = /^Ambiguous workflow/;
+const anyStatusOption: Option[] = [
+  ...statusesFor('implementation').map((status) => ({ value: status, label: `${status} (implementation)` })),
+  ...statusesFor('wayfinding').map((status) => ({ value: status, label: `${status} (wayfinding)` })),
+];
+
+function FixRow({ label, problem, children }: { label: string; problem: string; children: ReactNode }) {
+  return <Box display="grid" gridTemplateColumns={{ base: '1fr', md: '5rem minmax(0, 1fr) 16rem' }} gap="3" alignItems="center" px="3" py="2.5"
+    borderBottomWidth="1px" borderColor="border.muted" _last={{ borderBottomWidth: 0 }}>
+    <Text fontSize="sm" fontWeight="medium">{label}</Text>
+    <Text fontSize="sm" color="fg.muted">{problem}</Text>
+    <Box>{children}</Box>
+  </Box>;
+}
+
+function FixPanel({ issue, board, onDirty }: { issue: Issue; board: ProtoBoard; onDirty: (dirty: boolean) => void }) {
+  const [status, setStatus] = useState('');
+  const [type, setType] = useState('');
+  const [dropType, setDropType] = useState(false);
+  const [raw, setRaw] = useState<string | null>(null);
+  const content = issue.content;
+  useEffect(() => { onDirty(raw !== null && raw !== content); }, [raw, content]);
+  if (content === null) return <Alert.Root status="error"><Alert.Indicator /><Alert.Content>
+    <Alert.Title>This file can't be read</Alert.Title><Alert.Description>Check its permissions or encoding, then it reloads here automatically.</Alert.Description>
+  </Alert.Content></Alert.Root>;
+  const has = (rule: RegExp) => issue.diagnostics.some((reason) => rule.test(reason));
+  const currentStatus = readMetadata(content, 'Status');
+  const currentType = readMetadata(content, 'Type');
+  const others = issue.diagnostics.filter((reason) => !statusProblem.test(reason) && !typeProblem.test(reason) && !ambiguousProblem.test(reason));
+  const pickedImplementation = (statusesFor('implementation') as readonly string[]).includes(status);
+  const chosen = !!status || !!type || dropType;
+  function apply() {
+    let next = content!;
+    if (status) next = setMetadata(next, 'Status', status);
+    if (dropType) next = setMetadata(next, 'Type', null);
+    else if (type) next = setMetadata(next, 'Type', type);
+    void board.repair(issue.id, next);
+    setStatus(''); setType(''); setDropType(false);
+  }
+  return <Stack gap="4">
+    <Alert.Root status="warning" size="sm"><Alert.Indicator /><Alert.Content>
+      <Alert.Title>This file isn't on the board yet</Alert.Title>
+      <Alert.Description>Choose fixes below. Only the lines you change are rewritten; everything else in the file stays as it is.</Alert.Description>
+    </Alert.Content></Alert.Root>
+
+    <Box borderWidth="1px" borderColor="border" rounded="l2">
+      {(has(statusProblem) || has(ambiguousProblem)) && <FixRow label="Status"
+        problem={currentStatus ? `"${currentStatus}" ${has(ambiguousProblem) ? 'is an implementation status, but the file also has a Type line' : "isn't a status in either workflow"}.` : 'The file has no Status line.'}>
+        <AutoSelect label="Set status" placeholder="Choose a status" items={anyStatusOption} value={status} clearable
+          renderItem={(item) => <StatusDot status={item.value} />} onChange={(next) => { setStatus(next); if ((statusesFor('implementation') as readonly string[]).includes(next) && currentType !== null) setDropType(true); }} />
+      </FixRow>}
+      {(has(typeProblem) || has(ambiguousProblem)) && <FixRow label="Type"
+        problem={has(ambiguousProblem) ? `Type "${currentType}" belongs to wayfinding. Remove it to keep the implementation status, or pick a wayfinding status above.` : `"${currentType}" isn't a wayfinding type.`}>
+        {has(ambiguousProblem) || pickedImplementation
+          ? <Checkbox.Root size="sm" checked={dropType} onCheckedChange={(event) => setDropType(!!event.checked)}><Checkbox.HiddenInput /><Checkbox.Control /><Checkbox.Label>Remove Type line</Checkbox.Label></Checkbox.Root>
+          : <AutoSelect label="Set type" placeholder="Choose a type" items={wayfindingTypes.map((value) => ({ value, label: value }))} value={type} clearable onChange={setType} />}
+      </FixRow>}
+      {others.map((reason) => <FixRow key={reason} label="Other" problem={reason}><Text fontSize="xs" color="fg.muted">Fix in the Markdown below.</Text></FixRow>)}
+    </Box>
+    {chosen && <HStack justify="end" gap="2">
+      <Button size="sm" variant="ghost" onClick={() => { setStatus(''); setType(''); setDropType(false); }}>Reset</Button>
+      <Button size="sm" onClick={apply}>Apply fixes</Button>
+    </HStack>}
+
+    <Stack gap="2">
+      <HStack justify="space-between"><Text fontSize="sm" fontWeight="semibold">File</Text>
+        {raw === null && <Button size="xs" variant="outline" onClick={() => setRaw(content)}><LuPencil />Edit Markdown</Button>}</HStack>
+      {raw === null
+        ? <Code as="pre" display="block" whiteSpace="pre-wrap" p="3" fontSize="xs" maxH="22rem" overflowY="auto">{content}</Code>
+        : <>
+            <MarkdownField label="File Markdown" from={issue.path} value={raw} onChange={setRaw} height="20rem" />
+            <HStack justify="end" gap="2">
+              <Button size="sm" variant="ghost" onClick={() => setRaw(null)}>Cancel</Button>
+              <Button size="sm" disabled={raw === content} onClick={() => { void board.repair(issue.id, raw); setRaw(null); }}>Save file</Button>
+            </HStack>
+          </>}
+    </Stack>
   </Stack>;
 }
 
