@@ -1,0 +1,3 @@
+# Mirror existing ticket workflows
+
+The board will use the ticket system's existing status vocabularies, with separate views for implementation issues and wayfinding issues; dragging a card between columns changes the issue's status. We chose compatibility with existing agent skills over introducing a separate Todo / In progress / Done lifecycle, which would require new metadata and rules for agents to maintain. Dependencies will be advisory: wayfinding blockers can be calculated from the `resolved` state, while implementation dependencies are shown without inferring completion from triage readiness.
