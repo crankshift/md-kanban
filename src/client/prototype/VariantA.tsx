@@ -1,12 +1,12 @@
 // PROTOTYPE — throwaway. Variant A: top bar + toolbar, full-width columns, details in an overlay drawer.
 import { useEffect, useState } from 'react';
-import { Box, Button, CloseButton, Drawer, Flex, HStack, IconButton, Input, InputGroup, Menu, NativeSelect, Portal, SegmentGroup, Text } from '@chakra-ui/react';
+import { Box, Button, CloseButton, Drawer, Flex, HStack, IconButton, Input, InputGroup, Menu, Portal, SegmentGroup, Text } from '@chakra-ui/react';
 import { LuArrowLeft, LuBookOpen, LuPlus, LuSearch } from 'react-icons/lu';
 import type { Workflow } from '../../server/board.js';
 import { ColorModeButton } from '../components/ui/color-mode';
 import { featureKey, filterIssues, noFilters, scopeLabel, type Filters } from './data';
 import {
-  AttentionPopover, BoardEmpty, CreateIssueDialog, DetailBreadcrumb, DetailContent, documentGroups, documentIcon, KanbanColumns, LiveIndicator, useDetail,
+  AttentionPopover, AutoSelect, BoardEmpty, CreateIssueDialog, DetailBreadcrumb, DetailContent, documentGroups, documentIcon, KanbanColumns, LiveIndicator, useDetail,
 } from './shared';
 import type { VariantProps } from './PrototypeApp';
 
@@ -19,7 +19,7 @@ export function VariantA({ board, recovery, clearRecovery, reportOpen }: Variant
   const detail = useDetail(board, recovery, clearRecovery);
   useEffect(() => { reportOpen(detail.current?.kind === 'issue' ? detail.current.id : null); }, [detail.current]);
   const { board: issues } = filterIssues(board.issues, workflow, filters);
-  const filtered = filters !== noFilters && (!!filters.query || !!filters.location || !!filters.feature);
+  const filtered = !!filters.query || !!filters.location || !!filters.feature;
   const locations = [...new Set(board.issues.map((issue) => issue.location))].sort();
   const features = [...new Map(board.issues.filter((issue) => issue.workflow === workflow && (!filters.location || issue.location === filters.location))
     .map((issue) => [featureKey(issue), issue])).values()];
@@ -55,13 +55,11 @@ export function VariantA({ board, recovery, clearRecovery, reportOpen }: Variant
       <InputGroup startElement={<LuSearch />} maxW="xs" flex="1">
         <Input size="sm" type="search" placeholder="Search titles and bodies" value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} />
       </InputGroup>
-      <NativeSelect.Root size="sm" width="44"><NativeSelect.Field aria-label="Location" value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value, feature: '' })}>
-        <option value="">All locations</option>{locations.map((location) => <option key={location} value={location}>{location}</option>)}
-      </NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root>
-      <NativeSelect.Root size="sm" width="56"><NativeSelect.Field aria-label={scopeLabel(workflow)} value={filters.feature} onChange={(event) => setFilters({ ...filters, feature: event.target.value })}>
-        <option value="">All {workflow === 'wayfinding' ? 'efforts' : 'features'}</option>
-        {features.map((issue) => <option key={featureKey(issue)} value={featureKey(issue)}>{issue.feature}{locations.length > 1 ? ` (${issue.location})` : ''}</option>)}
-      </NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root>
+      <AutoSelect label="Location" placeholder="All locations" width="12rem" clearable items={locations.map((location) => ({ value: location, label: location }))}
+        value={filters.location} onChange={(location) => setFilters({ ...filters, location, feature: '' })} />
+      <AutoSelect label={scopeLabel(workflow)} placeholder={`All ${workflow === 'wayfinding' ? 'efforts' : 'features'}`} width="16rem" clearable
+        items={features.map((issue) => ({ value: featureKey(issue), label: locations.length > 1 ? `${issue.feature} (${issue.location})` : issue.feature }))}
+        value={filters.feature} onChange={(feature) => setFilters({ ...filters, feature })} />
       {filtered && <Button size="sm" variant="ghost" onClick={() => setFilters(noFilters)}>Clear</Button>}
     </HStack>
 

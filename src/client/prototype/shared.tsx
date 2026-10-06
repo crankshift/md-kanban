@@ -1,12 +1,12 @@
 // PROTOTYPE — throwaway. Pieces shared by the variants; each variant owns its own layout and detail surface.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Alert, Badge, Box, Breadcrumb, Button, chakra, Code, Dialog, EmptyState, Field, Flex, HStack, Icon, IconButton,
-  Input, Menu, NativeSelect, Popover, Portal, Separator, Spinner, Stack, Status, Tabs, Text, Textarea,
+  Alert, Badge, Box, Breadcrumb, Button, chakra, Code, Collapsible, Combobox, Dialog, EmptyState, Field, Flex, HStack, Icon, IconButton,
+  Input, Menu, Popover, Portal, Separator, Spinner, Stack, Status, Tabs, Text, Textarea, useFilter, useListCollection,
 } from '@chakra-ui/react';
 import { DragDropProvider, useDraggable, useDroppable } from '@dnd-kit/react';
 import {
-  LuBookOpen, LuCheck, LuEllipsisVertical, LuFileText, LuLink, LuMap, LuPencil, LuScale, LuTriangleAlert,
+  LuBookOpen, LuCheck, LuChevronDown, LuCornerDownLeft, LuEllipsisVertical, LuFileText, LuLink, LuMap, LuPencil, LuScale, LuSearch, LuTriangleAlert,
 } from 'react-icons/lu';
 import { titleSchema, type Issue, type Workflow } from '../../server/board.js';
 import { resolveDependencies } from '../../server/dependencies.js';
@@ -17,6 +17,57 @@ import { Prose } from '../components/ui/prose';
 import { toaster } from '../components/ui/toaster';
 import { Tooltip } from '../components/ui/tooltip';
 import { bodyOf, commentsOf, scopeLabel, statusesFor, type EditValues, type ProtoBoard, type Recovery } from './data';
+
+// ── Autocomplete select: every value picker is a filterable combobox, never a native <select> ─────────
+
+export type Option = { value: string; label: string };
+
+export function AutoSelect({ items, value, onChange, label, placeholder, size = 'sm', width, clearable = false, renderItem }: {
+  items: Option[]; value: string; onChange: (value: string) => void; label: string; placeholder?: string;
+  size?: 'xs' | 'sm' | 'md'; width?: string; clearable?: boolean; renderItem?: (item: Option) => ReactNode;
+}) {
+  const { contains } = useFilter({ sensitivity: 'base' });
+  const { collection, filter, set } = useListCollection<Option>({
+    initialItems: items, filter: contains, itemToString: (item) => item.label, itemToValue: (item) => item.value,
+  });
+  const itemsKey = JSON.stringify(items);
+  const labelOf = (selected: string) => items.find((item) => item.value === selected)?.label ?? '';
+  const [input, setInput] = useState(labelOf(value));
+  useEffect(() => { set(items); }, [itemsKey]);
+  useEffect(() => { setInput(labelOf(value)); }, [value, itemsKey]);
+  return <Combobox.Root collection={collection} size={size} width={width} openOnClick value={value ? [value] : []} inputValue={input}
+    onValueChange={(details) => onChange(details.value[0] ?? '')}
+    onInputValueChange={(details) => { setInput(details.inputValue); filter(details.inputValue); }}
+    onOpenChange={(details) => { if (details.open) filter(''); else setInput(labelOf(value)); }}>
+    <Combobox.Control>
+      <Combobox.Input aria-label={label} placeholder={placeholder ?? label} />
+      <Combobox.IndicatorGroup>{clearable && <Combobox.ClearTrigger />}<Combobox.Trigger /></Combobox.IndicatorGroup>
+    </Combobox.Control>
+    <Portal><Combobox.Positioner><Combobox.Content>
+      <Combobox.Empty>No matches</Combobox.Empty>
+      {collection.items.map((item) => <Combobox.Item key={item.value} item={item}>
+        <HStack gap="2" minW="0">{renderItem?.(item)}<Combobox.ItemText truncate>{item.label}</Combobox.ItemText></HStack>
+        <Combobox.ItemIndicator />
+      </Combobox.Item>)}
+    </Combobox.Content></Combobox.Positioner></Portal>
+  </Combobox.Root>;
+}
+
+export const statusOptions = (workflow: Workflow): Option[] => statusesFor(workflow).map((status) => ({ value: status, label: status }));
+
+/** Write and Preview share one fixed-height frame, so switching tabs never resizes the surrounding dialog. */
+export function MarkdownField({ value, onChange, label, from, height = '22rem', placeholder }: {
+  value: string; onChange: (value: string) => void; label: string; from: string; height?: string; placeholder?: string;
+}) {
+  const [tab, setTab] = useState('write');
+  return <Tabs.Root value={tab} onValueChange={(event) => setTab(event.value)} size="sm" variant="enclosed">
+    <Tabs.List><Tabs.Trigger value="write">Write</Tabs.Trigger><Tabs.Trigger value="preview">Preview</Tabs.Trigger></Tabs.List>
+    <Tabs.Content value="write" pt="2"><Textarea aria-label={label} fontFamily="mono" fontSize="sm" h={height} resize="none" placeholder={placeholder}
+      value={value} onChange={(event) => onChange(event.target.value)} /></Tabs.Content>
+    <Tabs.Content value="preview" pt="2"><Box h={height} overflowY="auto" borderWidth="1px" borderColor="border" rounded="l2" px="3" py="1">
+      <MarkdownProse from={from}>{value || '_Nothing to preview._'}</MarkdownProse></Box></Tabs.Content>
+  </Tabs.Root>;
+}
 
 // ── Status ────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -278,7 +329,6 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
 }) {
   const [editing, setEditing] = useState<{ base: Issue; values: EditValues } | null>(() =>
     recovery ? { base: { ...issue, revision: recovery.baseRevision }, values: recovery.values } : null);
-  const [tab, setTab] = useState('write');
   const [comment, setComment] = useState('');
   const [confirmOverlap, setConfirmOverlap] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -347,16 +397,10 @@ function IssueView({ issue, board, layout, recovery, onDirty, onOpenIssue, onLin
   const body = editing
     ? <Stack gap="3">
         {conflictBanner}
-        {layout === 'stack' && <HStack gap="2"><Text fontSize="sm" color="fg.muted">Status</Text>
-          <NativeSelect.Root size="xs" width="auto"><NativeSelect.Field aria-label="Issue status" value={editing.values.status} onChange={(event) => set({ status: event.target.value })}>
-            {statusesFor(issue.workflow!).map((status) => <option key={status} value={status}>{status}</option>)}
-          </NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root></HStack>}
-        <Tabs.Root value={tab} onValueChange={(event) => setTab(event.value)} size="sm" variant="enclosed">
-          <Tabs.List><Tabs.Trigger value="write">Write</Tabs.Trigger><Tabs.Trigger value="preview">Preview</Tabs.Trigger></Tabs.List>
-          <Tabs.Content value="write"><Textarea aria-label="Markdown body" fontFamily="mono" fontSize="sm" autoresize minH="60" maxH="60vh"
-            value={editing.values.body} onChange={(event) => set({ body: event.target.value })} /></Tabs.Content>
-          <Tabs.Content value="preview"><MarkdownProse from={issue.path}>{editing.values.body || '_Nothing to preview._'}</MarkdownProse></Tabs.Content>
-        </Tabs.Root>
+        <HStack gap="3"><Text fontSize="sm" color="fg.muted">Status</Text>
+          <AutoSelect label="Issue status" width="14rem" size="xs" items={statusOptions(issue.workflow!)} value={editing.values.status}
+            onChange={(status) => { if (status) set({ status }); }} renderItem={(item) => <StatusDot status={item.value} />} /></HStack>
+        <MarkdownField label="Markdown body" from={issue.path} value={editing.values.body} onChange={(body) => set({ body })} height="min(28rem, 50vh)" />
         <HStack justify="end" gap="2">
           <Button size="sm" variant="ghost" onClick={() => mine.length ? setConfirmCancel(true) : setEditing(null)}>Cancel</Button>
           <DiscardDialog open={confirmCancel} onKeep={() => setConfirmCancel(false)} onDiscard={() => { setConfirmCancel(false); setEditing(null); }} />
@@ -427,7 +471,6 @@ export function CreateIssueDialog({ open, onClose, board, workflow }: { open: bo
   const targets = useMemo(() => board.targets.filter((target) => target.workflow === workflow), [board.targets, workflow]);
   const [target, setTarget] = useState('');
   const [values, setValues] = useState<EditValues>({ title: '', status: statusesFor(workflow)[0]!, body: '' });
-  const [tab, setTab] = useState('write');
   const [confirm, setConfirm] = useState(false);
   useEffect(() => { if (open) { setTarget(targets[0]?.container ?? ''); setValues({ title: '', status: statusesFor(workflow)[0]!, body: '' }); } }, [open]);
   const dirty = !!values.title || !!values.body;
@@ -439,23 +482,18 @@ export function CreateIssueDialog({ open, onClose, board, workflow }: { open: bo
       <Portal><Dialog.Backdrop /><Dialog.Positioner><Dialog.Content>
         <Dialog.Header><Dialog.Title>New {workflow} issue</Dialog.Title></Dialog.Header>
         <Dialog.Body><Stack gap="4">
-          <Field.Root><Field.Label>{scopeLabel(workflow)}</Field.Label>
-            <NativeSelect.Root size="sm"><NativeSelect.Field aria-label="New issue container" value={target} onChange={(event) => setTarget(event.target.value)}>
-              {targets.map((candidate) => <option key={candidate.container} value={candidate.container}>{candidate.feature} — {candidate.container}</option>)}
-            </NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root>
-            <Field.HelperText>The next free number in this folder is assigned when the file is written.</Field.HelperText></Field.Root>
+          <HStack gap="3" align="start">
+            <Field.Root flex="2"><Field.Label>{scopeLabel(workflow)}</Field.Label>
+              <AutoSelect label="New issue container" items={targets.map((candidate) => ({ value: candidate.container, label: `${candidate.feature} (${candidate.location})` }))}
+                value={target} onChange={(next) => { if (next) setTarget(next); }} />
+              <Field.HelperText>Gets the next free number in this folder.</Field.HelperText></Field.Root>
+            <Field.Root flex="1"><Field.Label>Status</Field.Label>
+              <AutoSelect label="New issue status" items={statusOptions(workflow)} value={values.status} renderItem={(item) => <StatusDot status={item.value} />}
+                onChange={(status) => { if (status) setValues({ ...values, status }); }} /></Field.Root>
+          </HStack>
           <Field.Root required><Field.Label>Title</Field.Label>
             <Input aria-label="New issue title" value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} /></Field.Root>
-          <Field.Root><Field.Label>Status</Field.Label>
-            <NativeSelect.Root size="sm" width="auto"><NativeSelect.Field aria-label="New issue status" value={values.status} onChange={(event) => setValues({ ...values, status: event.target.value })}>
-              {statusesFor(workflow).map((status) => <option key={status} value={status}>{status}</option>)}
-            </NativeSelect.Field><NativeSelect.Indicator /></NativeSelect.Root></Field.Root>
-          <Tabs.Root value={tab} onValueChange={(event) => setTab(event.value)} size="sm" variant="enclosed">
-            <Tabs.List><Tabs.Trigger value="write">Write</Tabs.Trigger><Tabs.Trigger value="preview">Preview</Tabs.Trigger></Tabs.List>
-            <Tabs.Content value="write"><Textarea aria-label="New issue body" fontFamily="mono" fontSize="sm" autoresize minH="40" placeholder="## Outcome"
-              value={values.body} onChange={(event) => setValues({ ...values, body: event.target.value })} /></Tabs.Content>
-            <Tabs.Content value="preview"><MarkdownProse from="">{values.body || '_Nothing to preview._'}</MarkdownProse></Tabs.Content>
-          </Tabs.Root>
+          <MarkdownField label="New issue body" from="" placeholder="## Outcome" height="16rem" value={values.body} onChange={(body) => setValues({ ...values, body })} />
         </Stack></Dialog.Body>
         <Dialog.Footer>
           <Button variant="ghost" size="sm" onClick={close}>Cancel</Button>
@@ -465,4 +503,82 @@ export function CreateIssueDialog({ open, onClose, board, workflow }: { open: bo
     </Dialog.Root>
     <DiscardDialog open={confirm} onKeep={() => setConfirm(false)} onDiscard={() => { setConfirm(false); onClose(); }} />
   </>;
+}
+
+// ── List view and command palette ─────────────────────────────────────────────────────────────────────
+
+function ListRow({ issue, board, onOpen, showFeature }: { issue: Issue; board: ProtoBoard; onOpen: (id: string) => void; showFeature: boolean }) {
+  return <Box display="grid" gridTemplateColumns={showFeature ? '3rem minmax(0, 1fr) 13rem 12rem 10rem' : '3rem minmax(0, 1fr) 12rem 10rem'} alignItems="center" gap="3"
+    px="3" py="1.5" borderBottomWidth="1px" borderColor="border.muted" _hover={{ bg: 'bg.muted' }} cursor="pointer" onClick={() => onOpen(issue.id)}
+    opacity={board.pending.has(issue.id) || issue.number === null ? 0.6 : 1}>
+    <Text fontFamily="mono" fontSize="sm" color="fg.subtle" textAlign="end">{issue.number ?? '··'}</Text>
+    <chakra.button textAlign="start" fontSize="sm" fontWeight="medium" truncate aria-label={`Open #${issue.number}: ${issue.title}`}>{issue.title}</chakra.button>
+    {showFeature && <Text fontSize="xs" color="fg.muted" truncate>{issue.feature}{issue.location !== '.' ? ` in ${issue.location}` : ''}</Text>}
+    <Box mt="-1.5"><DependencyChips issue={issue} issues={board.issues} /></Box>
+    <Box justifySelf="end" onClick={(event) => event.stopPropagation()}><StatusMenu issue={issue} board={board} /></Box>
+  </Box>;
+}
+
+/** Dense alternative to columns: one collapsible group per status, same status menu on every row. */
+export function StatusList({ issues, workflow, board, onOpen, showFeature = true }: {
+  issues: Issue[]; workflow: Workflow; board: ProtoBoard; onOpen: (id: string) => void; showFeature?: boolean;
+}) {
+  return <Stack gap="4" pb="10">{statusesFor(workflow).map((status) => {
+    const rows = issues.filter((issue) => issue.status === status);
+    return <Collapsible.Root key={status} defaultOpen={rows.length > 0}>
+      <Collapsible.Trigger asChild><chakra.button display="flex" alignItems="center" gap="2" w="full" py="1.5" px="1" borderBottomWidth="1px" borderColor="border">
+        <Icon color="fg.muted" transition="transform 120ms" css={{ '[data-state=closed] > &': { transform: 'rotate(-90deg)' } }}><LuChevronDown /></Icon>
+        <StatusDot status={status}><Text fontSize="sm" fontWeight="semibold">{status}</Text></StatusDot>
+        <Text fontFamily="mono" fontSize="xs" color="fg.muted">{rows.length}</Text>
+      </chakra.button></Collapsible.Trigger>
+      <Collapsible.Content>{rows.map((issue) => <ListRow key={issue.id} issue={issue} board={board} onOpen={onOpen} showFeature={showFeature} />)}
+        {rows.length === 0 && <Text fontSize="xs" color="fg.subtle" px="3" py="2">Nothing here.</Text>}</Collapsible.Content>
+    </Collapsible.Root>;
+  })}</Stack>;
+}
+
+export function useHotkey(test: (event: KeyboardEvent) => boolean, action: () => void) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const typing = (event.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]');
+      if (test(event) && (!typing || event.metaKey || event.ctrlKey)) { event.preventDefault(); action(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+}
+
+export function CommandPalette({ open, onClose, board, onPick }: { open: boolean; onClose: () => void; board: ProtoBoard; onPick: (entry: Entry) => void }) {
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  useEffect(() => { if (open) { setQuery(''); setActive(0); } }, [open]);
+  const q = query.trim().toLowerCase();
+  const results: { entry: Entry; label: string; hint: string; icon: ReactNode }[] = [
+    ...board.issues.filter((issue) => issue.number && (!q || `${issue.number} ${issue.title} ${issue.content ?? ''}`.toLowerCase().includes(q)))
+      .map((issue) => ({ entry: { kind: 'issue' as const, id: issue.id }, label: issue.title, hint: `#${issue.number} · ${issue.feature}`, icon: <StatusDot status={issue.status} /> })),
+    ...board.documents.filter((doc) => !q || doc.title.toLowerCase().includes(q) || doc.path.toLowerCase().includes(q))
+      .map((doc) => ({ entry: { kind: 'doc' as const, path: doc.path, fragment: null }, label: doc.title, hint: doc.path, icon: <Icon color="fg.muted">{documentIcon(doc.kind)}</Icon> })),
+  ].slice(0, 12);
+  const pick = (index: number) => { const result = results[index]; if (result) { onPick(result.entry); onClose(); } };
+  return <Dialog.Root open={open} onOpenChange={(event) => { if (!event.open) onClose(); }} placement="top" size="lg">
+    <Portal><Dialog.Backdrop /><Dialog.Positioner><Dialog.Content mt="15vh">
+      <HStack px="4" borderBottomWidth="1px" borderColor="border.muted"><Icon color="fg.muted"><LuSearch /></Icon>
+        <Input variant="flushed" border="0" size="lg" placeholder="Search issues and documents" aria-label="Search issues and documents" value={query} autoFocus
+          onChange={(event) => { setQuery(event.target.value); setActive(0); }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') { event.preventDefault(); setActive((index) => Math.min(index + 1, results.length - 1)); }
+            if (event.key === 'ArrowUp') { event.preventDefault(); setActive((index) => Math.max(index - 1, 0)); }
+            if (event.key === 'Enter') pick(active);
+          }} /></HStack>
+      <Stack gap="0" p="2" maxH="60vh" overflowY="auto" role="listbox">
+        {results.length === 0 && <Text p="4" fontSize="sm" color="fg.muted">Nothing matches "{query}".</Text>}
+        {results.map((result, index) => <HStack key={index} role="option" aria-selected={index === active} px="3" py="2" rounded="l2" gap="3" cursor="pointer"
+          bg={index === active ? 'colorPalette.subtle' : undefined} onMouseEnter={() => setActive(index)} onClick={() => pick(index)}>
+          {result.icon}<Text fontSize="sm" truncate flex="1">{result.label}</Text>
+          <Text fontSize="xs" color="fg.muted" fontFamily="mono" truncate maxW="50%">{result.hint}</Text>
+          {index === active && <Icon color="fg.muted"><LuCornerDownLeft /></Icon>}
+        </HStack>)}
+      </Stack>
+    </Dialog.Content></Dialog.Positioner></Portal>
+  </Dialog.Root>;
 }

@@ -41,7 +41,7 @@ function Switcher({ variant, setVariant, palette, setPalette, failWrites, setFai
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('input, textarea, select, [contenteditable], [role=dialog], [role=menu]')) return;
+      if (target?.closest('input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=combobox]')) return;
       if (event.key === 'ArrowLeft') step(-1);
       if (event.key === 'ArrowRight') step(1);
     };
@@ -66,7 +66,7 @@ function Switcher({ variant, setVariant, palette, setPalette, failWrites, setFai
 }
 
 function Prototype({ palette, setPalette }: { palette: Palette; setPalette: (palette: Palette) => void }) {
-  const [variant, setVariant] = useParam<Key>('variant', keys, 'A');
+  const [variant, setVariant] = useParam<Key>('variant', keys, 'B');
   const [failWrites, setFailWrites] = useState(false);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [openIssue, setOpenIssue] = useState<string | null>(null);
@@ -82,7 +82,7 @@ function Prototype({ palette, setPalette }: { palette: Palette; setPalette: (pal
 }
 
 function Root() {
-  const [palette, setPalette] = useParam<Palette>('palette', palettes, 'indigo');
+  const [palette, setPalette] = useParam<Palette>('palette', palettes, 'orange');
   return <ChakraProvider value={systemFor(palette)}>
     <ColorModeProvider><Prototype palette={palette} setPalette={setPalette} /></ColorModeProvider>
   </ChakraProvider>;
