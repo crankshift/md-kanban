@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { discoverIssues } from './discovery.js';
 
 const assets = fileURLToPath(new URL('../client/', import.meta.url));
 const mime: Record<string, string> = {
@@ -24,6 +25,17 @@ export async function startServer(folder: string): Promise<{ server: Server; url
       if (pathname === '/api/context') {
         response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ folder }));
+        return;
+      }
+      if (pathname === '/api/issues') {
+        try {
+          const board = await discoverIssues(folder);
+          response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          response.end(request.method === 'HEAD' ? undefined : JSON.stringify(board));
+        } catch {
+          response.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+          response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ error: 'Cannot discover issues in the selected folder. Check access and reload.' }));
+        }
         return;
       }
       const path = resolve(assets, `.${pathname === '/' ? '/index.html' : pathname}`);

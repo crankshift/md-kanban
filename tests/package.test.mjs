@@ -18,6 +18,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   await mkdir(folder);
   // Deliberately collide with package files: selected-folder content must never be served.
   await writeFile(join(folder, 'index.html'), 'PRIVATE_FOLDER_SENTINEL');
+  await writeFile(join(folder, '01-example.md'), '# 01: Packaged issue\n\nStatus: ready-for-agent\n');
   const tarball = join(temporary, 'md-kanban.tgz');
   execFileSync('pnpm', ['pack', '--out', tarball], { cwd: checkout, stdio: 'pipe' });
   await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true }));
@@ -29,6 +30,10 @@ test('installed tarball serves its own frontend against a separate folder and sh
   const url = await app.url;
   const context = await fetch(`${url}/api/context`);
   assert.deepEqual(await context.json(), { folder });
+  const board = await (await fetch(`${url}/api/issues`)).json();
+  assert.equal(board.issues.length, 1);
+  assert.equal(board.issues[0].title, 'Packaged issue');
+  assert.equal(board.issues[0].workflow, 'implementation');
   const html = await (await fetch(url)).text();
   assert.match(html, /<title>md-kanban<\/title>/);
   assert.doesNotMatch(html, /PRIVATE_FOLDER_SENTINEL|main\.tsx|@vite\/client/);

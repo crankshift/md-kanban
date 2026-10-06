@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-The CLI and React shell are available from this checkout. Issue loading and board features follow in later slices.
+The CLI and read-only boards are available from this checkout. Launch against a repository, tracker, feature, or issue folder to read real issues in separate implementation and wayfinding views.
 
 Use Node 22.12 or newer and pnpm 11.21.0:
 
@@ -19,6 +19,12 @@ pnpm start --no-open ./
 Open the printed loopback URL. Omit `--no-open` to launch your default browser automatically; if opening fails, use the printed URL manually. Keep the terminal running, and press Ctrl+C to stop. An omitted folder defaults to the caller’s current directory. Relative folders resolve from that directory; invalid or inaccessible folders fail before startup.
 
 To install and run the built package outside the checkout, follow the [packed-package instructions](CONTRIBUTING.md#packed-package-verification). No registry publication is needed.
+
+Discovery includes `issues/` and `tickets/` containers under `.scratch` and `docs`, combining locations without duplicate paths. A directly selected issue folder can have any name. Cards show issue number, title, feature, and folder context, sorted by feature and number. Implementation columns describe triage readiness; wayfinding columns use `open`, `claimed`, and `resolved`.
+
+Numbered Markdown filenames or numbered top-level headings identify issue candidates. Plain and bold metadata keys are supported. Missing, unknown, conflicting, or malformed metadata appears in **Needs attention**, with diagnostics and expandable original Markdown. Specifications, maps, ADRs, generated assets, and dependency directories are excluded. Symbolic links inside the selected folder are skipped, including links to other folders inside it; explicitly selecting a symlinked folder uses its resolved target as the boundary.
+
+This slice reads files only. Reload the page to discover external changes. Issue details, dependency navigation, search/filters, editing, and automatic refresh follow in later slices.
 
 ## Intended registry usage (unreleased)
 
