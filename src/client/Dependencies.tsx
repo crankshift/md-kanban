@@ -1,4 +1,4 @@
-import { Badge, HStack } from '@chakra-ui/react';
+import { Badge, Button, Heading, HStack, Stack, Text } from '@chakra-ui/react';
 import { resolveDependencies, type Dependency } from '../server/dependencies.js';
 import type { Issue } from '../server/board.js';
 
@@ -18,27 +18,58 @@ export function DependencyIndicators({ dependencies }: { dependencies: Dependenc
 
 export function DependencyList({ issue, issues, onSelect }: { issue: Issue; issues: Issue[]; onSelect: (id: string) => void }) {
   const dependencies = resolveDependencies(issue, issues);
-  return <section aria-labelledby="dependencies-heading">
-    <h3 id="dependencies-heading">Dependencies</h3>
-    <p className="muted">{issue.workflow === 'wayfinding'
-      ? 'Advisory: only valid wayfinding prerequisites in resolved stop blocking. Unknown prerequisites need attention.'
-      : 'Advisory: triage readiness does not establish implementation completion.'}</p>
-    <p className="path">Blocked by: {issue.dependencyText ?? '(not specified)'}</p>
-    {dependencies.length === 0 ? <p>No dependencies listed.</p> : <ul aria-label="Dependencies">
-      {dependencies.map((dependency, index) => <li key={index}>
-        {dependency.kind === 'linked' ? <>
-          <button className="text-link" onClick={() => onSelect(dependency.target.id)}>#{dependency.target.number}: {dependency.target.title}</button>
-          <span className="path">{dependency.target.path}</span>
-          <span>{dependency.state === 'advisory' ? `Advisory · ${dependency.target.status ?? 'status unavailable'} · completion unknown` :
-            dependency.state === 'blocked' ? `Unresolved blocker · ${dependency.target.status}` :
-            dependency.state === 'resolved' ? 'Resolved prerequisite · no longer blocks' : 'Unknown prerequisite state · completion cannot be determined'}</span>
-        </> : <>
-          <strong>{dependency.reference || '(empty reference)'}</strong>
-          <span>{dependency.kind === 'missing' ? 'Missing issue in this feature/location.' :
-            dependency.kind === 'ambiguous' ? 'Ambiguous number; multiple issues in this feature/location.' : 'Unsupported dependency reference; expected an issue number with an optional title.'}</span>
-          {dependency.kind === 'ambiguous' && <ul>{dependency.candidates.map((candidate) => <li className="path" key={candidate.id}>{candidate.path}</li>)}</ul>}
-        </>}
-      </li>)}
-    </ul>}
-  </section>;
+  return (
+    <Stack as="section" aria-labelledby="dependencies-heading" gap="3" mt="5" pt="4" borderTopWidth="1px" minW="0">
+      <Heading as="h3" id="dependencies-heading" size="sm">Dependencies</Heading>
+      <Text fontSize="xs" color="fg.muted" lineHeight="1.6">
+        {issue.workflow === 'wayfinding'
+          ? 'Advisory: only valid wayfinding prerequisites in resolved stop blocking. Unknown prerequisites need attention.'
+          : 'Advisory: triage readiness does not establish implementation completion.'}
+      </Text>
+      <Text fontFamily="mono" fontSize="xs" overflowWrap="anywhere">
+        Blocked by: {issue.dependencyText ?? '(not specified)'}
+      </Text>
+      {dependencies.length === 0 ? (
+        <Text fontSize="sm" color="fg.muted">No dependencies listed.</Text>
+      ) : (
+        <Stack as="ul" aria-label="Dependencies" gap="4" listStyleType="none" m="0" p="0">
+          {dependencies.map((dependency, index) => (
+            <Stack as="li" key={index} gap="1" minW="0">
+              {dependency.kind === 'linked' ? <>
+                <Button variant="plain" size="sm" h="auto" justifyContent="start" textAlign="start"
+                  whiteSpace="normal" overflowWrap="anywhere" onClick={() => onSelect(dependency.target.id)}>
+                  #{dependency.target.number}: {dependency.target.title}
+                </Button>
+                <Text fontFamily="mono" fontSize="xs" color="fg.muted" overflowWrap="anywhere">
+                  {dependency.target.path}
+                </Text>
+                <Text fontSize="xs" lineHeight="1.6">
+                  {dependency.state === 'advisory' ? `Advisory · ${dependency.target.status ?? 'status unavailable'} · completion unknown` :
+                    dependency.state === 'blocked' ? `Unresolved blocker · ${dependency.target.status}` :
+                    dependency.state === 'resolved' ? 'Resolved prerequisite · no longer blocks' : 'Unknown prerequisite state · completion cannot be determined'}
+                </Text>
+              </> : <>
+                <Text fontSize="sm" fontWeight="semibold" overflowWrap="anywhere">
+                  {dependency.reference || '(empty reference)'}
+                </Text>
+                <Text fontSize="xs" color="fg.muted" lineHeight="1.6">
+                  {dependency.kind === 'missing' ? 'Missing issue in this feature/location.' :
+                    dependency.kind === 'ambiguous' ? 'Ambiguous number; multiple issues in this feature/location.' : 'Unsupported dependency reference; expected an issue number with an optional title.'}
+                </Text>
+                {dependency.kind === 'ambiguous' && (
+                  <Stack as="ul" gap="1" listStyleType="none" m="0" p="0">
+                    {dependency.candidates.map((candidate) => (
+                      <Text as="li" fontFamily="mono" fontSize="xs" color="fg.muted" overflowWrap="anywhere" key={candidate.id}>
+                        {candidate.path}
+                      </Text>
+                    ))}
+                  </Stack>
+                )}
+              </>}
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Stack>
+  );
 }
