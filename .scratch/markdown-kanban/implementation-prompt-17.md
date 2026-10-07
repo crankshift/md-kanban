@@ -1,0 +1,20 @@
+Implement `.scratch/markdown-kanban/issues/17-compact-board-ui.md` using the approved compact-card layout A.
+
+Read `AGENTS.md`, the referenced agent docs, `GLOSSARY.md`, and ADRs 0002, 0004, and 0005. Read ticket 17 and its archived prototype reference before changing code. The user has approved A and the interactions below; proceed without routine design confirmation. No new ADR is needed for these reversible presentation choices.
+
+The prototype is the visual primary source, not production code to promote unchanged. Follow its compact title-first layout while preserving the production status mutation's captured revision, optimistic save, rollback, accessibility announcements, disabled drag state during writes/reloads, focus restoration, and no-op cancelled/same-column/outside drops.
+
+Requirements:
+
+- Every searchable picker opens when clicked anywhere in its input. Keep typing/filtering, multi-select, disabled states, and keyboard navigation. The arrow is a plain chevron with no inset button border or padding, including inside editing and creation forms. Check the shared picker and broad form-button theme styles.
+- Align Clear search and filters and Reload issues with the picker inputs, excluding the labels from their vertical alignment. Use compatible control heights and wrap the toolbar when necessary.
+- Use compact A cards: full-width Roboto Condensed title, then a small issue number and feature/effort metadata row, then dependency badges when needed. Hide the feature/effort when already scoped. Keep IBM Plex Sans for controls/body and IBM Plex Mono for numbers/paths. Self-host the title font. Use Roboto Condensed for column headings and issue titles.
+- Remove the per-card three-dot status menu and separate drag grip, including in List. The entire board card is the drag surface. An ordinary click anywhere opens details; mouse movement past a small activation threshold starts dragging without also opening details. Touch uses a short hold. Enter opens details, Space starts keyboard dragging, arrows move, Space/Enter drop, and Escape cancels. List stays non-draggable and opens details by click/keyboard. Keep the existing searchable status picker in details as the alternative to dragging.
+- Footer: use the full available width, status on the left, theme toggle on the right, with horizontal padding. A small gap alone is insufficient. Stack/center the controls when the navigator is collapsed, without overflowing the rail. Check both live and outdated text.
+- Add vertical breathing room around the status-save feedback between the filters and board. The user specifically flagged “#01: Launch the packaged local web app status saved as needs-triage.” touching the filters.
+
+Rewrite the selected layout in the real components. Remove losing variants, the floating switcher, prototype-only memory API, startup script, entry-point gates, and renderer injection from the working implementation; retain the complete reviewed prototype only on its archived branch. Production must use the actual authenticated API, never the preview's memory-only status writes.
+
+Update the existing interaction tests to exercise whole-card dragging and the detail status picker instead of deleted card controls. Preserve meaningful disk/API tests for status-only Markdown edits, stale pickup revisions, rollback, optimistic moves, disabled creation/pending states, focus, no-op drops, keyboard access, and live refresh. Add interaction coverage for click versus drag only where it verifies distinct user behavior. Run type checking, the production build, and the relevant test suite. Verify the real UI in a browser, including footer padding/space-between, feedback spacing, form pickers, mouse and keyboard dragging, opening details, and light/dark appearance. Use temporary Markdown fixtures for browser writes.
+
+Update `CHANGELOG.md` under Unreleased and ticket 17 with the implementation result, checks, and limitations. Commit the focused implementation and report its commit. Do not push, merge, publish, or change the existing domain/status semantics. There is no next implementation ticket assigned after 17.
