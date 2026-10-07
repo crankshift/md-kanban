@@ -1,6 +1,6 @@
 # Contributing to mdboard
 
-Start with the [v1 specification](.scratch/markdown-kanban/spec.md), [glossary](GLOSSARY.md), and [architectural decisions](docs/adr/). Version 0.1.0 implements the whole v1 specification: a local app with discovery, dragging and safe status changes, issue creation/editing/comments, explicit Needs attention fixes, Markdown details, dependency navigation, search/filters, live refresh of external changes, and read-only supporting-document browsing. It is verified as a packed local package; npm publication is a separate release step.
+Start with the [v1 specification](.scratch/markdown-kanban/spec.md), [glossary](GLOSSARY.md), and [architectural decisions](docs/adr/). Version 0.1.0 implements the whole v1 specification: a local app with discovery, dragging and safe status changes, issue creation/editing/comments, explicit Needs attention fixes, Markdown details, dependency navigation, search/filters, live refresh of external changes, and read-only supporting-document browsing. Version 0.1.0 is published on npm. Release preparation includes packed-package verification; npm publication is a separate authenticated step.
 
 ## Setup and checks
 

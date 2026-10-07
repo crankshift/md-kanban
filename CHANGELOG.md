@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
 ### Changed
 
 - Compact title-first cards with self-hosted Roboto Condensed titles and column headings, smaller issue metadata, and scoped feature/effort labels.
@@ -43,5 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supporting Markdown documents now refresh through live file-change events.
 - Packed installations require only `open` and `zod` at runtime; client libraries ship in prebuilt assets.
 
-[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/crankshift/md-kanban/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/crankshift/md-kanban/releases/tag/v0.1.0

@@ -74,3 +74,9 @@ Prototype primary source: branch `prototype/compact-board-ui-2026-10-07`, finali
 - Added wrapping action rows with 16px top spacing in editing and creation; recovery/document actions also have explicit spacing. The helper text for original dependency metadata is smaller and muted. Submission, draft, and disabled-state logic is unchanged.
 - Verification: type checking and production build passed; all 39 relevant interaction tests passed (board/forms, client recovery, navigator, repairs, documents). Real Brave checks verified distinct filled buttons versus bordered dropdowns, compact action widths, 16px reload-row spacing, normal tab borders, Preview/Reload behavior, and creation in light mode; editor checked in dark mode. Creation chevrons still compute zero padding/border. No browser writes were made during these checks, and the user's existing fixture draft was left open untouched.
 - PR, merge, and release are on hold at the user's request. None has been created/published for this change. Uncommitted 0.1.1 release preparation was removed while paused; the package remains 0.1.0 until release work resumes.
+
+### Release resumed — 2026-10-07
+
+- The user resumed squash-merge and release work for PR #3. Prepared patch version 0.1.1 and moved the user-visible changes from Unreleased into its dated changelog entry. Corrected README registry usage because 0.1.0 is already published.
+- GitHub reports no Actions workflows, so merge and publication require manual commands. npm login was renewed by the user and verified for `crankshift`. Release verification runs against the final version before merge/tag/publication.
+- The equal-card sizing experiment was cancelled and removed before PR #3; the release keeps the approved compact layout with content-driven card heights.
