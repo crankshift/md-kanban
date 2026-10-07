@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
+### Changed
+
+- Compact title-first cards with self-hosted Roboto Condensed titles and column headings, smaller issue metadata, and scoped feature/effort labels.
+- Whole-card dragging with click/Enter to open details, Space to pick up by keyboard, and the searchable detail status picker as an alternative; removed card status menus and grips from Board and List.
+- Searchable pickers open from input clicks and use plain chevrons in every form; filter actions align with inputs and wrap.
+- Form actions use compact filled or text buttons, distinct from bordered dropdown fields; reload/discard rows have explicit spacing, and Write/Preview tabs no longer inherit generic button borders.
+- Issue details separate dependency headings, advisory text, source paths, and dependency states with explicit spacing and typography.
+- Padded connection/theme footer spreads across the sidebar and stacks inside the collapsed rail; save feedback has more vertical space.
+
 ## [0.1.0] - 2026-10-06
 
 ### Added
@@ -34,5 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supporting Markdown documents now refresh through live file-change events.
 - Packed installations require only `open` and `zod` at runtime; client libraries ship in prebuilt assets.
 
-[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/crankshift/md-kanban/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/crankshift/md-kanban/releases/tag/v0.1.0

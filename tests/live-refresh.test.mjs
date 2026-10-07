@@ -20,11 +20,11 @@ async function liveBoard(t, initial = files) {
   const text = (selector) => ui.document.querySelector(selector)?.textContent ?? '';
   const button = (label) => [...ui.document.querySelectorAll('button')].find((candidate) => (candidate.getAttribute('aria-label') ?? candidate.textContent) === label);
   const column = (status) => ui.document.querySelector(`section[aria-label="${status}"]`);
-  const cards = (status) => [...column(status).querySelectorAll('button[aria-label^="Open #"]')].map((card) => card.textContent);
+  const cards = (status) => [...column(status).querySelectorAll('article[aria-label^="Open #"]')].map((card) => card.querySelector('h3').textContent);
   await ui.until(() => text('[aria-label="Connection: live"]').startsWith('live'), 'the live connection');
   return { ...ui, text, button, column, cards,
     write: (path, content) => writeFile(join(ui.folder, path), content),
-    open: (path) => ui.click(ui.document.querySelector(`button[aria-label^="Open #"][aria-label$=" · ${path}"]`)) };
+    open: (path) => ui.click(ui.document.querySelector(`article[aria-label^="Open #"][aria-label$=" · ${path}"]`)) };
 }
 
 test('external edits, creations, renames and deletions refresh untouched issues while search, filters, workflow and other drafts stay put', async (t) => {
@@ -49,11 +49,11 @@ test('external edits, creations, renames and deletions refresh untouched issues 
   await ui.until(() => ui.cards('needs-triage').includes('Alpha created'), 'a created issue');
   await ui.write('.scratch/alpha/spec.md', '# Spec\n\nStatus: approved\n');
   await rename(join(ui.folder, '.scratch/alpha/issues/03-created.md'), join(ui.folder, '.scratch/alpha/issues/03-renamed.md'));
-  await ui.until(() => ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-renamed.md"]'), 'a renamed issue');
-  assert.equal(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-created.md"]'), null);
+  await ui.until(() => ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-renamed.md"]'), 'a renamed issue');
+  assert.equal(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-created.md"]'), null);
   await rm(join(ui.folder, '.scratch/alpha/issues/03-renamed.md'));
   await ui.until(() => !ui.cards('needs-triage').includes('Alpha created'), 'a deleted issue to leave the board');
-  assert.equal(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/spec.md"]'), null, 'supporting documents never become cards');
+  assert.equal(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/spec.md"]'), null, 'supporting documents never become cards');
   assert.ok(ui.button('Needs attention'), 'attention remains reachable');
 });
 
@@ -128,7 +128,8 @@ test('app saves are not duplicated or reverted by their own file-change notifica
   // A status move after an external change uses the refreshed revision rather than a stale one.
   await ui.write(SECOND, files[SECOND].replace('needs-info', 'ready-for-human'));
   await ui.until(() => ui.cards('ready-for-human').length === 1, 'the external status');
-  const select = ui.document.querySelector(`button[aria-label^="Open #"][aria-label$=" · ${SECOND}"]`).closest('article[aria-label^="Issue #"]').querySelector('input[role="combobox"]');
+  await ui.open(SECOND);
+  const select = ui.document.querySelector('[aria-label=\"Issue metadata\"] input[role=\"combobox\"]');
   await ui.change(select, 'wontfix');
   await ui.settled();
   assert.match(await readFile(join(ui.folder, SECOND), 'utf8'), /Status: wontfix/);
@@ -177,7 +178,7 @@ test('files becoming malformed move to Needs attention while the draft stays rec
   await ui.open(FIRST);
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Mid-edit');
   await ui.write(FIRST, '# 01: Alpha first\n\nStatus: finished\n');
-  await ui.until(() => !ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-first.md"]'), 'unrecognized issue leaves the board');
+  await ui.until(() => !ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-first.md"]'), 'unrecognized issue leaves the board');
   assert.match(ui.document.querySelector('[aria-label="Issue details"]').textContent, /status/i);
   assert.ok(!ui.cards('ready-for-agent').includes('Alpha first'));
   assert.match(ui.text('[aria-label="Issue editor"]'), /needs attention/);
@@ -196,7 +197,7 @@ test('creation drafts are kept when the folder changes, while an untouched form 
   const container = ui.document.querySelector('[aria-label="New issue container"]');
   assert.match(container.value, /alpha/);
   await ui.write('.scratch/alpha/issues/03-agent.md', '# 03: Agent made\n\nStatus: needs-triage\n');
-  await ui.until(() => ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-agent.md"]'), 'the agent issue');
+  await ui.until(() => ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/03-agent.md"]'), 'the agent issue');
   await act(async () => new Promise((resolve) => setTimeout(resolve, 300)));
   assert.equal(ui.document.querySelector('[aria-label="Create issue"] [role="alert"]'), null, 'an untouched form just refreshes');
   await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Typed title');
@@ -233,7 +234,8 @@ test('a refresh waits for an in-flight save instead of racing its confirmation',
   const gate = new Promise((resolve) => { release = resolve; });
   globalThis.fetch = (path, options) => String(path).includes('/api/status') ? gate.then(() => transport(path, options)) : transport(path, options);
   t.after(() => { globalThis.fetch = transport; });
-  const select = ui.document.querySelector(`button[aria-label^="Open #"][aria-label$=" · ${FIRST}"]`).closest('article[aria-label^="Issue #"]').querySelector('input[role="combobox"]');
+  await ui.open(FIRST);
+  const select = ui.document.querySelector('[aria-label=\"Issue metadata\"] input[role=\"combobox\"]');
   await ui.change(select, 'needs-info');
   assert.match(ui.document.body.textContent, /Saving issue/);
   await ui.write(SECOND, files[SECOND].replace('needs-info', 'wontfix'));

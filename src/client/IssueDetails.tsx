@@ -1,5 +1,5 @@
 import { FixPanel, type RepairActions } from './FixPanel';
-import { Box, Grid, Heading, Stack, Text } from '@chakra-ui/react';
+import { Box, Button, Grid, Heading, Stack, Text } from '@chakra-ui/react';
 import { useEffect, useRef } from 'react';
 import { SafeMarkdown } from './SafeMarkdown';
 import { IssueEditor, type IssueDraft, type EditorActions } from './IssueEditor';
@@ -103,7 +103,7 @@ function OpenedIssue({
       }}
     >
       <div className="details-header">
-        <Heading size="lg" mb="4">
+        <Heading size="lg" mb="4" fontFamily="issueTitle">
           #{issue.number}: {issue.title}
         </Heading>
       </div>
@@ -208,7 +208,7 @@ export function MissingIssue({
             rows={14}
             value={JSON.stringify(draft.values, null, 2)}
           />
-          <button onClick={onDiscard}>Discard draft</button>
+          <Button size="sm" variant="subtle" mt="3" onClick={onDiscard}>Discard draft</Button>
         </>
       )}
     </aside>

@@ -49,7 +49,7 @@ test('the board lists supporting documents separately from cards and renders an 
   const list = ui.document.querySelector('section[aria-label="Supporting documents"]');
   assert.deepEqual([...list.querySelectorAll('[aria-label="Document group"]')].map(text), ['Specifications', 'Wayfinding maps', 'Architectural decisions']);
   assert.deepEqual([...list.querySelectorAll('li button')].map(text), ['Alpha specification', 'Beta map', '0001: Proposed decision']);
-  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 2, 'only implementation issues are cards');
+  assert.equal(ui.document.querySelectorAll('article[role="button"]').length, 2, 'only implementation issues are cards');
   assert.ok(ui.button('Needs attention'));
   await ui.click(ui.button('0001: Proposed decision', list));
   await ui.until(() => ui.documentPanel()?.querySelector('[aria-label="Document Markdown"]'), 'ADR content');
@@ -67,7 +67,7 @@ test('the board lists supporting documents separately from cards and renders an 
 test('issue and specification links open in-root targets, with Back, fragments and clear unavailable results', async (t) => {
   const ui = await setup(t);
   const before = await folderFiles(ui.folder);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-start.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-start.md"]'));
   let panel = ui.issuePanel();
   assert.equal(ui.link(panel, 'site').getAttribute('rel'), 'noopener noreferrer');
   assert.equal(ui.link(panel, 'site').getAttribute('target'), '_blank');
@@ -154,7 +154,7 @@ test('a document removed after listing is reported unavailable', async (t) => {
 
 test('Markdown previews keep relative links inert so a draft cannot be navigated away', async (t) => {
   const ui = await setup(t);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/02-next.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/02-next.md"]'));
   await ui.change(ui.document.querySelector('[aria-label="Markdown body"]'), 'See [the spec](../spec.md) and [site](https://example.com).');
   await ui.click(ui.button('Preview'));
   const preview = ui.document.querySelector('[aria-label="Body preview"]');

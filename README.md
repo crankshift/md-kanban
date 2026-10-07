@@ -6,7 +6,7 @@ Open your project's tickets in a browser, see what needs attention, follow depen
 
 ## Run the local app today
 
-Version 0.1.0 is complete and verified as a local package, but it is not on npm yet. Until it is published, run it from a checkout or install a packed tarball. The CLI, boards, dragging and status changes, issue creation, editing and comments, Needs attention fixes, dependency navigation, search, supporting documents, and live refresh of external changes all work today. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
+Run the published package with `npx mdboard` or `pnpx mdboard`, or build from a checkout using the steps below. The CLI, boards, dragging and status changes, issue creation, editing and comments, Needs attention fixes, dependency navigation, search, supporting documents, and live refresh of external changes all work today. Launch against a repository, tracker, feature, or issue folder to work with real issues in separate implementation and wayfinding views.
 
 The installed CLI needs Node 22.12 or newer. Building from a checkout needs Node 22.22 or newer and pnpm 11.21.0:
 
@@ -30,7 +30,7 @@ Dependencies resolve within the issue's feature/effort and location, across its 
 
 Dependency badges are advisory. A valid wayfinding prerequisite in `open` or `claimed` is an unresolved blocker; `resolved` stops blocking. Unknown prerequisite states remain visible. Implementation triage readiness never implies completion.
 
-Drag a card by its grip handle to another status column with a mouse, or hold the handle briefly before moving with touch. With a keyboard, focus the handle, press Space or Enter to pick up, use arrow keys to move (Shift plus an arrow moves faster), and press Space or Enter to drop or Escape to cancel. The target column is highlighted and moves and save results are announced to screen readers. The card’s status menu and detail status picker remain available, including in List view. Same-column, outside-column, and cancelled drops write nothing; card order stays feature, then issue number. Changes save immediately to the original Markdown file, using only statuses in that issue's workflow. Dependencies do not prohibit transitions. Only the status value changes; metadata style, whitespace, line endings, unknown sections, checkboxes, and comments stay intact.
+Click anywhere on a card or press Enter to open details. Drag anywhere on a board card to another status column with a mouse, or hold the card briefly before moving with touch. With a keyboard, focus the card, press Space to pick up, use arrow keys to move (Shift plus an arrow moves faster), and press Space or Enter to drop or Escape to cancel. The target column is highlighted and moves and save results are announced to screen readers. The searchable status picker in details provides an alternative to dragging. List cards open details by click, Enter, or Space and do not drag. Same-column, outside-column, and cancelled drops write nothing; card order stays feature, then issue number. Changes save immediately to the original Markdown file, using only statuses in that issue's workflow. Dependencies do not prohibit transitions. Only the status value changes; metadata style, whitespace, line endings, unknown sections, checkboxes, and comments stay intact.
 
 The board shows status moves, field saves, comments, and creation immediately while the server writes. Pending controls are disabled. A new issue displays **Creating…** without a number until the server confirms it. Failures roll the change back and report an error; stale writes also reload the latest issues for review. A lost response can follow a successful write, so inspect the refreshed Markdown before retrying, especially comments and creation. The local write API checks the app session, origin, selected-folder boundary, and expected file or container revision.
 
@@ -72,9 +72,7 @@ Relative links in an issue or supporting document open in the dialog when the ta
 
 Launching an issue folder directly exposes only documents inside that folder, so its parent's specification and the repository's ADRs are unavailable; a feature/effort folder exposes its own `spec.md`/`map.md`, and ADRs only if that folder is itself laid out like a repository root (contains `.git`, `.scratch`, or `docs`). A document is read from disk each time it opens, when the window regains focus, and when you choose **Reload document**; edits made outside the app also refresh open documents through live file-change events. Documents larger than 2 MiB are not displayed.
 
-## Intended registry usage (unreleased)
-
-**Not yet published:** mdboard is not on the npm registry yet, so these commands do not work. They describe how you will run it once it is published; until then, use [the local app](#run-the-local-app-today).
+## Registry usage
 
 From your project or ticket folder, run either command:
 

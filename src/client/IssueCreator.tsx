@@ -1,3 +1,4 @@
+import { Button, HStack } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -176,9 +177,9 @@ export function IssueCreator({
       {visible && (
         <>
           <h2>Create issue</h2>
-          <button disabled={saving || loading} onClick={onClose}>
+          <Button size="sm" alignSelf="start" variant="ghost" mb="3" disabled={saving || loading} onClick={onClose}>
             Close creation
-          </button>
+          </Button>
           {message && <p role="alert">{message}</p>}
           {outdated && (
             <p role="alert">
@@ -282,32 +283,34 @@ export function IssueCreator({
               <MarkdownEditor body={values.body} previewLabel="New issue preview">
                 <textarea aria-label="New issue body" {...register('body')} />
               </MarkdownEditor>
-              <button type="submit" disabled={!selected}>
+              <Button size="sm" alignSelf="start" variant="solid" type="submit" disabled={!selected}>
                 Create issue
-              </button>
+              </Button>
             </fieldset>
           </form>
-          <button
-            disabled={saving || loading}
-            onClick={() => {
-              void loadTargets(true);
-            }}
-          >
-            Reload containers, keep draft
-          </button>
-          <button
-            disabled={saving || loading}
-            onClick={() => {
-              reset({
-                ...defaults,
-                target: values.target,
-                status: selected?.workflow === 'wayfinding' ? 'open' : 'needs-triage',
-              });
-              setMessage(null);
-            }}
-          >
-            Discard creation draft
-          </button>
+          <HStack mt="4" gap="2" flexWrap="wrap" aria-label="Creation draft actions">
+            <Button size="sm" alignSelf="start" variant="subtle"
+              disabled={saving || loading}
+              onClick={() => {
+                void loadTargets(true);
+              }}
+            >
+              Reload containers, keep draft
+            </Button>
+            <Button size="sm" alignSelf="start" variant="ghost"
+              disabled={saving || loading}
+              onClick={() => {
+                reset({
+                  ...defaults,
+                  target: values.target,
+                  status: selected?.workflow === 'wayfinding' ? 'open' : 'needs-triage',
+                });
+                setMessage(null);
+              }}
+            >
+              Discard creation draft
+            </Button>
+          </HStack>
         </>
       )}
     </section>

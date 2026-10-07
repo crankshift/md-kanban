@@ -33,6 +33,7 @@ export function Picker({
         value={value}
         multiple={multiple}
         disabled={disabled}
+        openOnClick
         size="sm"
         inputValue={multiple || editing ? query : selectedLabel}
         onOpenChange={(event) => {
@@ -54,7 +55,7 @@ export function Picker({
         <Combobox.Control>
           <Combobox.Input aria-label={label} placeholder="Type to filter…" />
           <Combobox.IndicatorGroup>
-            <Combobox.Trigger aria-label={`Choose ${label}`} />
+            <Combobox.Trigger aria-label={`Choose ${label}`} border="0" p="0" bg="transparent" rounded="0" />
           </Combobox.IndicatorGroup>
         </Combobox.Control>
         <Combobox.Positioner>
