@@ -33,12 +33,6 @@ export const system = createSystem(
       },
       button: { cursor: 'pointer' },
       'button:disabled': { cursor: 'default', opacity: 0.5 },
-      'form button:not([data-scope="combobox"][data-part="trigger"]), section[aria-label="Issue editor"] > div > button': {
-        borderWidth: '1px',
-        rounded: 'l2',
-        px: '3',
-        py: '1.5',
-      },
       '[role=alert]': { color: 'fg.error', my: '2' },
     },
     theme: {

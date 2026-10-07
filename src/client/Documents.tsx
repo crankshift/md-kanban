@@ -1,5 +1,5 @@
 import { toaster } from './components/ui/toaster';
-import { Box, Button, Heading, Stack, Text } from '@chakra-ui/react';
+import { Box, Button, Heading, HStack, Stack, Text } from '@chakra-ui/react';
 import { useEffect, useRef, useState } from 'react';
 import {
   documentLinkSchema,
@@ -192,10 +192,10 @@ export function DocumentPanel({
           {target.path}
         </Box>
       </dl>
-      <p>
-        {onBack && <button onClick={onBack}>{backLabel ?? 'Back'}</button>}
-        <button onClick={() => void query.refetch()}>Reload document</button>
-      </p>
+      <HStack mt="3" mb="3" gap="2" flexWrap="wrap">
+        {onBack && <Button size="sm" variant="subtle" onClick={onBack}>{backLabel ?? 'Back'}</Button>}
+        <Button size="sm" variant="subtle" onClick={() => void query.refetch()}>Reload document</Button>
+      </HStack>
       {notice && <p role="alert">{notice}</p>}
       {missingFragment && (
         <p role="status">The section “{missingFragment}” was not found in this document.</p>

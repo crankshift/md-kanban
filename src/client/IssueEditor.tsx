@@ -1,3 +1,4 @@
+import { Button, HStack, Text } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
@@ -126,17 +127,17 @@ function Editor(props: IssueEditorActions & { issue: Issue; issues: Issue[]; sav
               readOnly
               value={JSON.stringify(props.draft.values, null, 2)}
             />
-            <button onClick={() => props.onDraft(undefined)}>Discard mine</button>
+            <Button size="sm" alignSelf="start" variant="subtle" mt="3" me="2" onClick={() => props.onDraft(undefined)}>Discard mine</Button>
           </>
         )}
-        <button
+        <Button size="sm" alignSelf="start" variant="subtle" mt="3"
           disabled={props.saving}
           onClick={() => {
             void props.onReload().catch(() => {});
           }}
         >
           Reload issues, keep draft
-        </button>
+        </Button>
       </section>
     );
   return <EditableIssue {...props} />;
@@ -322,7 +323,7 @@ function EditableIssue({
               />
             )}
           />
-          <button
+          <Button size="sm" alignSelf="start" variant="ghost"
             type="button"
             onClick={() => {
               setValue('dependencies', []);
@@ -331,34 +332,34 @@ function EditableIssue({
             }}
           >
             Clear dependencies
-          </button>
-          <p className="muted">
+          </Button>
+          <Text fontSize="xs" color="fg.muted" lineHeight="1.6">
             Original text: {base.dependencyText ?? 'No dependency metadata'}.
             {dependencies.some((dependency) => dependency.kind !== 'linked') &&
               ' Unresolved references are retained unless you change the selection.'}
-          </p>
+          </Text>
           <MarkdownEditor body={values.body} previewLabel="Body preview">
             <textarea aria-label="Markdown body" {...register('body')} />
           </MarkdownEditor>
-          <button type="submit" disabled={!changed}>
+          <Button size="sm" alignSelf="start" variant="solid" type="submit" disabled={!changed}>
             Save issue
-          </button>
+          </Button>
           <label>
             New comment
             <textarea rows={4} aria-label="New comment" {...register('comment')} />
           </label>
-          <button
+          <Button size="sm" alignSelf="start" variant="solid"
             type="button"
             onClick={() => {
               void append();
             }}
           >
             Append comment
-          </button>
+          </Button>
         </fieldset>
       </form>
-      <div className="draft-actions">
-        <button
+      <HStack mt="4" gap="2" flexWrap="wrap" aria-label="Draft actions">
+        <Button size="sm" alignSelf="start" variant="subtle"
           disabled={saving}
           onClick={() => {
             void onReload().catch((error: unknown) =>
@@ -367,9 +368,9 @@ function EditableIssue({
           }}
         >
           Reload issues, keep draft
-        </button>
+        </Button>
         {stale && (
-          <button
+          <Button size="sm" alignSelf="start" variant="subtle"
             disabled={saving}
             onClick={() => {
               const changes = changesFrom(getValues(), defaults);
@@ -394,10 +395,10 @@ function EditableIssue({
             }}
           >
             Reapply mine on latest
-          </button>
+          </Button>
         )}
         {(changed || values.comment || draft) && (
-          <button
+          <Button size="sm" alignSelf="start" variant="ghost"
             disabled={saving}
             onClick={() => {
               replace(issue, editorValues(issue, issues));
@@ -405,9 +406,9 @@ function EditableIssue({
             }}
           >
             Discard mine
-          </button>
+          </Button>
         )}
-      </div>
+      </HStack>
     </section>
   );
 }

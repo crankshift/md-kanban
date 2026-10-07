@@ -60,18 +60,18 @@ export function FixPanel({ issue, saving, onRepair, onDirty }: RepairActions & {
       </Box>;
     })}
     {draft && <>
-      <Button disabled={saving || !!raw || !(draft.status || draft.type || draft.removeType)} onClick={() => {
+      <Button size="sm" alignSelf="start" disabled={saving || !!raw || !(draft.status || draft.type || draft.removeType)} onClick={() => {
         const changes = { ...(draft.status ? { status: draft.status } : {}),
           ...(draft.removeType ? { type: null } : draft.type ? { type: draft.type } : {}) };
         void save(draft.base, { changes: repairChangesSchema.parse(changes) });
       }}>Apply fixes</Button>
-      <Button disabled={saving} onClick={() => { setDraft(null); onDirty(!!raw && raw.content !== raw.base.content); }}>Reset fixes</Button>
+      <Button size="sm" alignSelf="start" variant="subtle" disabled={saving} onClick={() => { setDraft(null); onDirty(!!raw && raw.content !== raw.base.content); }}>Reset fixes</Button>
     </>}
     {raw ? <>
       <MarkdownEditor body={raw.content} previewLabel="File preview"><textarea aria-label="File Markdown" disabled={saving} value={raw.content} onChange={(event) => { setRaw({ ...raw, content: event.target.value }); onDirty(event.target.value !== raw.base.content || !!draft); }} /></MarkdownEditor>
-      <Button disabled={saving || raw.content === raw.base.content || issue.content === null} onClick={() => void save(raw.base, { content: raw.content })}>Save file</Button>
-      <Button disabled={saving} onClick={closeRaw}>Cancel Markdown editing</Button>
-    </> : <Button disabled={saving || issue.content === null} onClick={() => setRaw({ base: issue, content: issue.content! })}>Edit Markdown</Button>}
+      <Button size="sm" alignSelf="start" disabled={saving || raw.content === raw.base.content || issue.content === null} onClick={() => void save(raw.base, { content: raw.content })}>Save file</Button>
+      <Button size="sm" alignSelf="start" variant="subtle" disabled={saving} onClick={closeRaw}>Cancel Markdown editing</Button>
+    </> : <Button size="sm" alignSelf="start" variant="subtle" disabled={saving || issue.content === null} onClick={() => setRaw({ base: issue, content: issue.content! })}>Edit Markdown</Button>}
     {issue.content === null && <Text role="alert">The file cannot be read. Check its permissions or encoding, then reload issues.</Text>}
   </Stack>;
 }
