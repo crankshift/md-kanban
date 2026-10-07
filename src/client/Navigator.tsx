@@ -316,7 +316,9 @@ export function Navigator({
           <DocumentList documents={documents} failed={documentsFailed} onOpen={onDocument} />
         )}
         {collapsed && nav('Locations and scopes', <LuCompass />, false, () => setDocsOpen(true))}
-        <HStack mt="auto" pt="3" flexWrap="wrap">
+        <HStack mt="auto" pt="3" px={collapsed ? '0' : '3'} w="full" gap="3"
+          justify={collapsed ? 'center' : 'space-between'}
+          flexDirection={collapsed ? 'column' : 'row'}>
           <Tooltip content={live}>
             <Text
               tabIndex={0}

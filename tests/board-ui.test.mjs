@@ -9,7 +9,7 @@ import { fixture, boardFiles } from './fixtures.mjs';
 test('renders each workflow with its own columns, real context, and readable attention entries', async (t) => {
   const root = await fixture(t, boardFiles);
   const data = await discoverIssues(root);
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono'] } });
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono', '@fontsource-variable/roboto-condensed'] } });
   t.after(() => vite.close());
   const { BoardView } = await vite.ssrLoadModule('/Board.tsx');
   const { Provider } = await vite.ssrLoadModule('/components/ui/provider.tsx');
@@ -43,21 +43,21 @@ test('search, location and scoped feature filters compose while dependencies use
     'docs/alpha/issues/01-other.md': '# 01: Needle docs\nStatus: ready-for-agent\n',
   });
   const data = await discoverIssues(root);
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono'] } });
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono', '@fontsource-variable/roboto-condensed'] } });
   t.after(() => vite.close());
   const { BoardView } = await vite.ssrLoadModule('/Board.tsx');
   const { Provider } = await vite.ssrLoadModule('/components/ui/provider.tsx');
   const render = (filters) => renderToStaticMarkup(createElement(Provider, {}, createElement(BoardView, { data, workflow: 'implementation', filters })));
   const all = render({ query: ' NEEDLE ', location: '', feature: '' });
-  assert.equal((all.match(/aria-label="Issue #/g) ?? []).length, 4);
+  assert.equal((all.match(/aria-label="Open #/g) ?? []).length, 4);
   const location = render({ query: 'needle', location: '.scratch', feature: '' });
-  assert.equal((location.match(/aria-label="Issue #/g) ?? []).length, 3);
+  assert.equal((location.match(/aria-label="Open #/g) ?? []).length, 3);
   const feature = render({ query: 'needle', location: '.scratch', feature: JSON.stringify(['.scratch', 'alpha']) });
-  assert.equal((feature.match(/aria-label="Issue #/g) ?? []).length, 2);
+  assert.equal((feature.match(/aria-label="Open #/g) ?? []).length, 2);
   assert.doesNotMatch(feature, /Needle beta|Needle docs/);
   assert.ok(feature.indexOf('Start') < feature.indexOf('Needle follow-up'));
   const titleOnly = render({ query: 'follow-up', location: '.scratch', feature: JSON.stringify(['.scratch', 'alpha']) });
-  assert.equal((titleOnly.match(/aria-label="Issue #/g) ?? []).length, 1);
+  assert.equal((titleOnly.match(/aria-label="Open #/g) ?? []).length, 1);
   assert.match(titleOnly, /1 advisory dependency/);
   assert.match(titleOnly, /1 dependency reference needs attention/);
   assert.match(render({ query: 'absent', location: '', feature: '' }), /No implementation issues match/);

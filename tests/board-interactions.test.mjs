@@ -9,7 +9,7 @@ test('explicit form saves preserve comments, preview safely and confirm discardi
   const original = '# 01: Example\nStatus: ready-for-agent\nBlocked by: None (first issue)\n\n## Acceptance\n- [x] Keep\n\n## Comments\nExisting comment.\n';
   const ui = await renderBoard(t, { 'issues/01-example.md': original, 'issues/02-other.md': '# 02: Other\nStatus: needs-info\n' }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · issues/01-example.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · issues/01-example.md"]'));
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Edited example');
   await ui.change(ui.document.querySelector('[aria-label="Markdown body"]'), '## Acceptance\n- [x] Keep\n\n**Preview**\n\n<script>bad()</script>\n\n[bad](javascript:alert(1))');
   await ui.change(ui.document.querySelector('[aria-label="New comment"]'), 'Draft comment');
@@ -21,7 +21,7 @@ test('explicit form saves preserve comments, preview safely and confirm discardi
   assert.equal(preview.querySelector('input[type="checkbox"]').disabled, true);
   let confirmations = 0;
   ui.document.defaultView.confirm = () => { confirmations++; return false; };
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · issues/02-other.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · issues/02-other.md"]'));
   assert.equal(confirmations, 1);
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Edited example');
   await ui.click(button('Save issue'));
@@ -43,7 +43,7 @@ test('form validation and stale saves retain drafts, and explicit recovery prese
   const original = '# 01: Example\nStatus: ready-for-agent\n\n## Notes\nOriginal body.\n\n## Comments\nFirst.\n';
   const ui = await renderBoard(t, { '01-example.md': original }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"]'));
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), '');
   await ui.click(button('Save issue'));
   assert.match(ui.document.querySelector('[aria-label="Issue editor"]').textContent, /nonempty, single-line title/);
@@ -85,7 +85,7 @@ test('dependency/status form fields save explicitly and attention documents stay
     '.scratch/alpha/issues/03-attention.md': '# 03: Attention\nStatus: unknown\n\nReadable notes.\n',
   }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-example.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-example.md"]'));
   const dependencies = ui.document.querySelector('[aria-label="Issue dependencies"]');
   assert.deepEqual(await ui.options(dependencies), ['#02: Dependency · .scratch/alpha/tickets', '#03: Attention · .scratch/alpha/issues']);
   await ui.change(ui.document.querySelector('[aria-label="Issue status"]'), 'needs-info');
@@ -111,7 +111,7 @@ test('disk errors and lost comment responses preserve recoverable drafts without
   const path = join(ui.folder, '01-example.md');
   t.after(() => chmod(path, 0o644).catch(() => {}));
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"]'));
   await ui.change(ui.document.querySelector('[aria-label="New comment"]'), 'Keep my comment');
   await chmod(path, 0o444);
   await ui.click(button('Append comment'));
@@ -152,7 +152,7 @@ test('removed or newly unsupported issues retain a copyable draft and can reload
   const ui = await renderBoard(t, { '01-example.md': original }, true);
   const path = join(ui.folder, '01-example.md');
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"]'));
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Recover me');
   await unlink(path);
   await ui.click(button('Save issue'));
@@ -179,7 +179,7 @@ test('opens the correct issue by path and renders safe Markdown body and comment
     '.scratch/beta/issues/01-read.md': '# 01: Read beta\nStatus: ready-for-agent\n\n## Notes\nDistinct beta body.\n',
   };
   const ui = await renderBoard(t, files);
-  const buttons = ui.document.querySelectorAll('button[aria-label^="Open #"]');
+  const buttons = ui.document.querySelectorAll('article[aria-label^="Open #"]');
   await ui.click(buttons[1]);
   let panel = ui.document.querySelector('[aria-label="Issue details"]');
   assert.ok(panel, 'card opens a details side panel');
@@ -204,7 +204,7 @@ test('keyboard status changes persist immediately, preserve sorted cards and upd
     'issues/10-later.md': '# 10: Later\nStatus: needs-info\n',
     'issues/02-start.md': '# 02: Start\n**Status:** ready-for-agent\nBlocked by: 99\n\n## Comments\nKeep this.\n',
   }, true);
-  const title = ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · issues/02-start.md"]');
+  const title = ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · issues/02-start.md"]');
   await ui.click(title);
   const status = ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]');
   assert.ok(status, 'card provides a keyboard-accessible status selector');
@@ -212,7 +212,7 @@ test('keyboard status changes persist immediately, preserve sorted cards and upd
   await ui.change(status, 'needs-info');
   await ui.settled();
   const column = ui.document.querySelector('[aria-label="needs-info"]');
-  assert.deepEqual([...column.querySelectorAll('button[aria-label^="Open #"]')].map((button) => button.textContent), ['Start', 'Later']);
+  assert.deepEqual([...column.querySelectorAll('article[aria-label^="Open #"]')].map((card) => card.querySelector('h3').textContent), ['Start', 'Later']);
   assert.equal(await readFile(join(ui.folder, 'issues/02-start.md'), 'utf8'), '# 02: Start\n**Status:** needs-info\nBlocked by: 99\n\n## Comments\nKeep this.\n');
   assert.match(ui.document.querySelector('[aria-label="Issue metadata"]').textContent, /needs-info/);
   assert.match(ui.document.body.textContent, /Issue saved/);
@@ -224,26 +224,29 @@ test('status choices persist despite advisory blockers and update dependency ind
     'issues/02-next.md': '# 02: Next\nStatus: claimed\nBlocked by: 01\n',
   }, true);
   await ui.click([...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === 'Wayfinding'));
-  const card = () => ui.document.querySelector('[aria-label="Issue #01: Prerequisite"]');
-  assert.match(ui.document.querySelector('[aria-label="Issue #02: Next"]').textContent, /1 unresolved blocker/);
-  assert.deepEqual(await ui.options(card().querySelector('[role="combobox"]')), ['open', 'claimed', 'resolved']);
-  await ui.change(card().querySelector('[role="combobox"]'), 'resolved');
+  const card = () => ui.document.querySelector('[aria-label^="Open #01: Prerequisite ·"]');
+  assert.match(ui.document.querySelector('[aria-label^="Open #02: Next ·"]').textContent, /1 unresolved blocker/);
+  await ui.click(card());
+  const status = () => ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]');
+  assert.deepEqual(await ui.options(status()), ['open', 'claimed', 'resolved']);
+  await ui.change(status(), 'resolved');
   await ui.settled();
   assert.equal(await readFile(join(ui.folder, 'issues/01-prerequisite.md'), 'utf8'), '# 01: Prerequisite\nStatus: resolved\nBlocked by: 99\n');
   assert.equal(card().closest('section'), ui.document.querySelector('[aria-label="resolved"]'));
-  assert.doesNotMatch(ui.document.querySelector('[aria-label="Issue #02: Next"]').textContent, /unresolved blocker/);
+  assert.doesNotMatch(ui.document.querySelector('[aria-label^="Open #02: Next ·"]').textContent, /unresolved blocker/);
 });
 
 test('stale saves refresh the external status and preserve external comments, while disk failures stay visibly unsaved', async (t) => {
   const ui = await renderBoard(t, { '01-change.md': '# 01: Change\nStatus: open\n\n## Comments\nOriginal.\n' }, true);
   await ui.click([...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === 'Wayfinding'));
-  const control = () => ui.document.querySelector('article[aria-label^="Issue #"] input[role="combobox"]');
+  await ui.click(ui.document.querySelector('article[role="button"]'));
+  const control = () => ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]');
   const external = '# 01: Change\nStatus: claimed\n\n## Comments\nAgent comment.\n';
   await writeFile(join(ui.folder, '01-change.md'), external);
   await ui.change(control(), 'resolved');
   await ui.settled();
   assert.equal(control().value, 'claimed');
-  assert.equal(control().closest('section').getAttribute('aria-label'), 'claimed');
+  assert.equal(ui.document.querySelector('article[role="button"]').closest('section').getAttribute('aria-label'), 'claimed');
   assert.match(ui.document.querySelector('[role="alert"]').textContent, /Status was not saved.*changed on disk/);
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), external);
   await chmod(join(ui.folder, '01-change.md'), 0o444);
@@ -268,12 +271,16 @@ test('pending saves show an optimistic status and prevent overlapping UI writes'
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   globalThis.fetch = async (path, options) => { if (path === '/api/status') await gate; return transport(path, options); };
-  const controls = [...ui.document.querySelectorAll('article[aria-label^="Issue #"] input[role="combobox"]')];
-  await ui.change(controls[0], 'needs-info');
-  assert.equal(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · 01-first.md"]').closest('article[aria-label^="Issue #"]').querySelector('input[role="combobox"]').value, 'needs-info');
-  assert.ok([...ui.document.querySelectorAll('article[aria-label^="Issue #"] input[role="combobox"]')].every((control) => control.disabled));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #01:"]'));
+  const status = () => ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]');
+  await ui.change(status(), 'needs-info');
+  assert.equal(status().value, 'needs-info');
+  assert.equal(status().disabled, true);
+  assert.ok([...ui.document.querySelectorAll('article[role="button"]')].every((card) => card.getAttribute('data-drag-disabled') === 'true'));
   assert.match(ui.document.body.textContent, /Saving issue/);
-  assert.equal(controls[1].disabled, true, 'another picker cannot submit while saving');
+  await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #02:"]'));
+  assert.equal(status().disabled, true, 'another issue picker cannot submit while saving');
   await act(async () => release());
   await ui.settled();
   assert.equal(await readFile(join(ui.folder, '01-first.md'), 'utf8'), '# 01: First\nStatus: needs-info\n');
@@ -282,21 +289,22 @@ test('pending saves show an optimistic status and prevent overlapping UI writes'
 
 test('a lost save response recovers the persisted status and a failed refresh gives an actionable outdated-state warning', async (t) => {
   const ui = await renderBoard(t, { '01-change.md': '# 01: Change\nStatus: ready-for-agent\n' }, true);
+  await ui.click(ui.document.querySelector('article[role="button"]'));
   const transport = globalThis.fetch;
   globalThis.fetch = async (path, options) => {
     const response = await transport(path, options);
     if (path === '/api/status') throw new TypeError('Connection lost after save');
     return response;
   };
-  await ui.change(ui.document.querySelector('article[aria-label^="Issue #"] input[role="combobox"]'), 'needs-info');
+  await ui.change(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'needs-info');
   await ui.settled();
-  assert.equal(ui.document.querySelector('article[aria-label^="Issue #"] input[role="combobox"]').value, 'needs-info');
+  assert.equal(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]').value, 'needs-info');
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
   assert.match(ui.document.body.textContent, /Could not confirm/);
   globalThis.fetch = async () => { throw new TypeError('Server stopped'); };
-  await ui.change(ui.document.querySelector('article[aria-label^="Issue #"] input[role="combobox"]'), 'wontfix');
+  await ui.change(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'wontfix');
   await ui.settled();
-  assert.equal(ui.document.querySelector('article[aria-label^="Issue #"] input[role="combobox"]').value, 'needs-info');
+  assert.equal(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]').value, 'needs-info');
   assert.match(ui.document.body.textContent, /Could not confirm/);
   assert.equal(await readFile(join(ui.folder, '01-change.md'), 'utf8'), '# 01: Change\nStatus: needs-info\n');
 });
@@ -313,14 +321,14 @@ test('search and both filters compose, and dependency navigation finds hidden ta
   await ui.click([...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === 'Wayfinding'));
   const search = ui.document.querySelector('input[type="search"]');
   const [location, feature] = ui.document.querySelectorAll('[aria-label="Search and filters"] input[role="combobox"]');
-  const cards = () => ui.document.querySelectorAll('button[aria-label^="Open #"]');
+  const cards = () => ui.document.querySelectorAll('article[aria-label^="Open #"]');
   await ui.change(search, ' SEARCHABLE ');
   assert.equal(cards().length, 3, 'body and title matches span locations');
   await ui.change(location, '.scratch');
   assert.equal(cards().length, 2);
   await ui.change(feature, 'alpha · .scratch');
   assert.equal(cards().length, 1);
-  assert.equal(cards()[0].textContent, 'Follow up');
+  assert.equal(cards()[0].querySelector('h3').textContent, 'Follow up');
   await ui.click(cards()[0]);
   let panel = ui.document.querySelector('[aria-label="Issue details"]');
   assert.match(panel.textContent, /Resolved prerequisite · no longer blocks/);
@@ -364,10 +372,10 @@ test('creation form previews Markdown, discards drafts on confirmed close and op
   await ui.click(button('Create issue'));
   await ui.settled();
   assert.match(await readFile(join(ui.folder, 'issues/02-created-example.md'), 'utf8'), /Find this phrase/);
-  assert.ok(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · issues/02-created-example.md"]'));
+  assert.ok(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · issues/02-created-example.md"]'));
   assert.match(ui.document.querySelector('[aria-label="Issue details"]').textContent, /Created example/);
   await ui.change(ui.document.querySelector('input[type="search"]'), 'Find this phrase');
-  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 1);
+  assert.equal(ui.document.querySelectorAll('article[role="button"]').length, 1);
 });
 
 test('creation validation, conflicts, disk failures and lost responses retain content without false success', async (t) => {
@@ -375,7 +383,7 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   const original = '# 01: Existing\nStatus: ready-for-agent\n';
   const ui = await renderBoard(t, { 'issues/01-existing.md': original }, true);
   const button = (text) => [...ui.document.querySelectorAll('button')].find((button) => (button.getAttribute('aria-label') ?? button.textContent) === text);
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"]'));
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Existing edit draft');
   await ui.click(button('New issue'));
   await ui.settled();
@@ -390,7 +398,7 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   await ui.click(button('Create issue'));
   await ui.settled();
   assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Retained new draft');
-  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 1);
+  assert.equal(ui.document.querySelectorAll('article[role="button"]').length, 1);
   assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /changed on disk/);
   await ui.click(button('Reload containers, keep draft'));
   await ui.settled();
@@ -399,7 +407,7 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   await ui.click(button('Create issue'));
   await ui.settled();
   assert.equal(ui.document.querySelector('[aria-label="New issue body"]').value, '## Outcome\nKeep my body.');
-  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 1);
+  assert.equal(ui.document.querySelectorAll('article[role="button"]').length, 1);
   await chmod(join(ui.folder, 'issues'), 0o700);
   const transport = globalThis.fetch;
   globalThis.fetch = async (path, options) => {
@@ -412,13 +420,13 @@ test('creation validation, conflicts, disk failures and lost responses retain co
   globalThis.fetch = transport;
   assert.equal(ui.document.querySelector('[aria-label="New issue title"]').value, 'Retained new draft');
   assert.match(ui.document.querySelector('[aria-label="Create issue"]').textContent, /review latest Markdown|Lost response/);
-  assert.equal(ui.document.querySelectorAll('article[aria-label^="Issue #"]').length, 2, 'refresh shows disk without claiming creation success');
+  assert.equal(ui.document.querySelectorAll('article[role="button"]').length, 2, 'refresh shows disk without claiming creation success');
   assert.doesNotMatch(ui.document.body.textContent, /Retained new draft created\./);
   await ui.click(button('Create issue'));
   await ui.settled();
   assert.equal((await readdir(join(ui.folder, 'issues'))).filter((name) => name.endsWith('.md')).length, 2, 'stale retry cannot duplicate a lost-response creation');
   await ui.click(button('Close creation'));
-  await ui.click(ui.document.querySelector('button[aria-label^="Open #"][aria-label$=" · issues/01-existing.md"]'));
+  await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · issues/01-existing.md"]'));
   assert.equal(ui.document.querySelector('[aria-label="Issue title"]').value, 'Existing');
 });
 
@@ -442,5 +450,26 @@ test('creation selects wayfinding workflow/type, scoped dependencies and initial
   await ui.settled();
   const saved = await readFile(join(ui.folder, 'docs/beta/tickets/02-investigate.md'), 'utf8');
   assert.match(saved, /Status: claimed\nType: prototype\nBlocked by: 01/);
-  assert.ok(ui.document.querySelector('[aria-label="wayfinding board"] button[aria-label^="Open #"][aria-label$=" · docs/beta/tickets/02-investigate.md"]'));
+  assert.ok(ui.document.querySelector('[aria-label="wayfinding board"] article[aria-label^="Open #"][aria-label$=" · docs/beta/tickets/02-investigate.md"]'));
+});
+
+test('picker inputs open their searchable options in filters, editing and creation', async (t) => {
+  const ui = await renderBoard(t, { 'issues/01-example.md': '# 01: Example\nStatus: ready-for-agent\n', 'issues/02-other.md': '# 02: Other\nStatus: needs-info\n' }, true);
+  const open = async (input) => {
+    await ui.until(() => !input.disabled, 'picker is ready');
+    await ui.click(input);
+    assert.equal(input.getAttribute('aria-expanded'), 'true');
+    const list = ui.document.getElementById(input.getAttribute('aria-controls'));
+    assert.ok(list.querySelector('[role="option"]'));
+    await act(async () => input.dispatchEvent(new ui.document.defaultView.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  };
+  await open(ui.document.querySelector('[aria-label="Location"]'));
+  await ui.click(ui.document.querySelector('article[role="button"]'));
+  await open(ui.document.querySelector('[aria-label="Issue status"]'));
+  await open(ui.document.querySelector('[aria-label="Issue dependencies"]'));
+  await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
+  await ui.click([...ui.document.querySelectorAll('button')].find((node) => node.textContent === 'New issue'));
+  await open(ui.document.querySelector('[aria-label="New issue container"]'));
+  await open(ui.document.querySelector('[aria-label="New issue status"]'));
+  await open(ui.document.querySelector('[aria-label="New issue dependencies"]'));
 });

@@ -30,7 +30,7 @@ import {
 } from './Documents';
 import { IssueCreator } from './IssueCreator';
 import { IssueDetails } from './IssueDetails';
-import { StatusControl, type StatusControls } from './StatusControl';
+import type { StatusControls } from './StatusControl';
 import type { IssueEditorActions, IssueDraft } from './IssueEditor';
 
 type Filters = { query: string; location: string; feature: string };
@@ -74,7 +74,7 @@ export function BoardView({
         )}
         {attention.map((issue) => (
           <Box key={issue.id} borderWidth="1px" rounded="l2" p="3" bg="bg.panel">
-            <Button variant="plain" onClick={() => onSelect?.(issue.id)}>
+            <Button variant="plain" fontFamily="issueTitle" onClick={() => onSelect?.(issue.id)}>
               {issue.title}
             </Button>
             <Text fontFamily="mono" fontSize="xs">
@@ -90,76 +90,38 @@ export function BoardView({
       </Stack>
     );
   function card(issue: Issue) {
-    const content = (
-      <Box
-        as="article"
-        aria-label={`Issue #${issue.number ?? '?'}: ${issue.title}`}
-        key={issue.id}
-        bg="bg.panel"
-        borderWidth="1px"
-        rounded="l2"
-        p="3"
-        pb={mode === 'board' && onStatusChange ? '8' : '3'}
-        _hover={{ borderColor: 'border.emphasized' }}
-      >
-        <HStack align="start">
-          <Text aria-label="Issue number" fontFamily="mono" fontSize="xs" color="fg.muted" minW="7">
-            {issue.number ? `#${issue.number}` : 'Creating…'}
-          </Text>
-          <Stack
-            direction={mode === 'list' ? 'row' : 'column'}
-            align={mode === 'list' ? 'center' : undefined}
-            gap="2"
-            flex="1"
-            minW="0"
-          >
-            <Button
-              variant="plain"
-              color="fg"
-              size="sm"
-              whiteSpace="normal"
-              textAlign="start"
-              justifyContent="start"
-              h="auto"
-              flex={mode === 'list' ? '1' : undefined}
-              aria-label={
-                issue.number
-                  ? `Open #${issue.number}: ${issue.title} · ${issue.path}`
-                  : `Creating: ${issue.title}`
-              }
-              disabled={issue.id === 'creating'}
-              onClick={() => onSelect?.(issue.id)}
-            >
-              {issue.title}
-            </Button>
-            {!filters.feature && (
-              <Text fontSize="xs" color="fg.muted">
-                {issue.feature}
-              </Text>
-            )}
-            <DependencyIndicators dependencies={resolveDependencies(issue, data.issues)} />
-          </Stack>
-          <StatusControl
-            compact
-            issue={issue}
-            onStatusChange={onStatusChange}
-            savingId={savingId}
-          />
-        </HStack>
-      </Box>
-    );
-    return mode === 'board' ? (
+    const dependencies = resolveDependencies(issue, data.issues);
+    return (
       <DragCard
         key={issue.id}
         issue={issue}
-        disabled={!onStatusChange || !!savingId || !issue.revision || issue.id === 'creating'}
+        onSelect={onSelect}
+        draggable={mode === 'board' && !!onStatusChange}
+        disabled={!!savingId || !issue.revision || issue.id === 'creating'}
       >
-        {content}
+        <Stack gap="1.5">
+          <Text
+            as="h3"
+            fontFamily="issueTitle"
+            fontWeight="500"
+            fontSize="md"
+            lineHeight="1.25"
+            overflowWrap="anywhere"
+          >
+            {issue.title}
+          </Text>
+          <HStack gap="2" align="baseline" flexWrap="wrap" color="fg.muted" fontSize="xs">
+            <Text aria-label="Issue number" fontFamily="mono" fontSize="10px" flexShrink="0">
+              {issue.number ? `#${issue.number}` : 'Creating…'}
+            </Text>
+            {!filters.feature && <Text overflowWrap="anywhere">{issue.feature}</Text>}
+          </HStack>
+          {dependencies.length > 0 && <DependencyIndicators dependencies={dependencies} />}
+        </Stack>
       </DragCard>
-    ) : (
-      content
     );
   }
+
   return (
     <StatusDragBoard workflow={workflow} onStatusChange={onStatusChange} savingId={savingId}>
       <Box p="6" pt="2">
@@ -185,9 +147,9 @@ export function BoardView({
           {statuses.map((status) => {
             const column = issues.filter((issue) => issue.status === status);
             const title = (
-              <HStack justify="space-between" mb="3">
-                <Text fontWeight="medium">{status}</Text>
-                <Text color="fg.muted">{column.length}</Text>
+              <HStack justify="space-between" mb="2" px="1">
+                <Text fontFamily="issueTitle" fontWeight="600" fontSize="md">{status}</Text>
+                <Text fontSize="xs" color="fg.muted">{column.length}</Text>
               </HStack>
             );
             return mode === 'list' ? (
@@ -677,7 +639,7 @@ export function Board({
           )}
         </HStack>
       </HStack>
-      <HStack px="6" gap="3" aria-label="Search and filters">
+      <HStack px="6" gap="3" align="end" flexWrap="wrap" aria-label="Search and filters">
         <Picker
           label="Location"
           items={[
@@ -699,12 +661,12 @@ export function Board({
           value={[filters.feature]}
           onChange={(values) => setFilters({ ...filters, feature: values[0] ?? '' })}
         />
-        <Button size="xs" variant="ghost" onClick={() => setFilters(emptyFilters)}>
+        <Button size="sm" variant="ghost" onClick={() => setFilters(emptyFilters)}>
           Clear search and filters
         </Button>
         {(outdated || live === 'offline') && (
           <Button
-            size="xs"
+            size="sm"
             disabled={!!savingId || reloading}
             onClick={() => {
               void reloadForUser().catch(() => {});
@@ -715,18 +677,18 @@ export function Board({
         )}
       </HStack>
       {savingId && (
-        <Text role="status" px="6">
+        <Text role="status" px="6" py="3">
           Saving issue…
         </Text>
       )}
       {outdated && (
-        <Text role="alert" px="6">
+        <Text role="alert" px="6" py="3">
           Cannot refresh issues. Last data is shown; your draft is kept. Reconnect and reload
           issues.
         </Text>
       )}
       {result && (
-        <Text role={result.error ? 'alert' : 'status'} aria-live="polite" px="6">
+        <Text role={result.error ? 'alert' : 'status'} aria-live="polite" px="6" py="3">
           {result.message}
         </Text>
       )}

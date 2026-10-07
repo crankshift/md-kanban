@@ -103,7 +103,7 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
   dom.window.confirm = () => true;
   Object.assign(globalThis, globals);
   const { createRoot } = await import('react-dom/client');
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs', '@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono'] } });
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs', '@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono', '@fontsource-variable/roboto-condensed'] } });
   const { Board } = await vite.ssrLoadModule('/Board.tsx');
   const { App } = await vite.ssrLoadModule('/App.tsx');
   const { ClientProviders, createClientRouter } = await vite.ssrLoadModule('/ClientState.tsx');

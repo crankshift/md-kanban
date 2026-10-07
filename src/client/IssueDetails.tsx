@@ -103,7 +103,7 @@ function OpenedIssue({
       }}
     >
       <div className="details-header">
-        <Heading size="lg" mb="4">
+        <Heading size="lg" mb="4" fontFamily="issueTitle">
           #{issue.number}: {issue.title}
         </Heading>
       </div>

@@ -1,6 +1,7 @@
 import { createSystem, defaultConfig, defineConfig } from '@chakra-ui/react';
 import '@fontsource-variable/ibm-plex-sans';
 import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource-variable/roboto-condensed';
 export const system = createSystem(
   defaultConfig,
   defineConfig({
@@ -32,7 +33,7 @@ export const system = createSystem(
       },
       button: { cursor: 'pointer' },
       'button:disabled': { cursor: 'default', opacity: 0.5 },
-      'form button, section[aria-label="Issue editor"] > div > button': {
+      'form button:not([data-scope="combobox"][data-part="trigger"]), section[aria-label="Issue editor"] > div > button': {
         borderWidth: '1px',
         rounded: 'l2',
         px: '3',
@@ -51,6 +52,7 @@ export const system = createSystem(
       },
       tokens: {
         fonts: {
+          issueTitle: { value: "'Roboto Condensed Variable', sans-serif" },
           heading: { value: "'IBM Plex Sans Variable', system-ui, sans-serif" },
           body: { value: "'IBM Plex Sans Variable', system-ui, sans-serif" },
           mono: { value: "'IBM Plex Mono', monospace" },

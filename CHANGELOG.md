@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Compact title-first cards with self-hosted Roboto Condensed titles and column headings, smaller issue metadata, and scoped feature/effort labels.
+- Whole-card dragging with click/Enter to open details, Space to pick up by keyboard, and the searchable detail status picker as an alternative; removed card status menus and grips from Board and List.
+- Searchable pickers open from input clicks and use plain chevrons in every form; filter actions align with inputs and wrap.
+- Padded connection/theme footer spreads across the sidebar and stacks inside the collapsed rail; save feedback has more vertical space.
+
 ## [0.1.0] - 2026-10-06
 
 ### Added
