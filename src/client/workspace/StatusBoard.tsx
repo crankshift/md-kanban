@@ -49,7 +49,8 @@ export function StatusBoard({ documents, scoped, columns, scope, selected, pendi
   useEffect(() => {
     if (!active) return;
     const old = document.body.style.cursor; document.body.style.cursor = 'grabbing';
-    return () => { document.body.style.cursor = old; };
+    document.body.classList.add('mdboard-dragging');
+    return () => { document.body.style.cursor = old; document.body.classList.remove('mdboard-dragging'); };
   }, [active]);
   function finish(event?: DragEndEvent) {
     const doc = pickup.current; pickup.current = null; setActive(null);

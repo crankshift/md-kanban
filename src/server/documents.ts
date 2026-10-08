@@ -30,7 +30,7 @@ const unavailable = (reason: string): DocumentLink => ({ status: 'unavailable', 
  */
 async function safeFile(root: string, path: string): Promise<string> {
   const parts = path.split('/');
-  if (!path || parts.some((part) => part === '' || part === '.' || part === '..' || denied.has(part))) throw new DocumentError(404, 'This document is not available.');
+  if (!path || parts.some((part) => part === '' || part === '.' || part === '..' || denied.has(part.toLowerCase()))) throw new DocumentError(404, 'This document is not available.');
   let current = root;
   for (const [index, part] of parts.entries()) {
     current = join(current, part);
@@ -114,7 +114,7 @@ export async function discoverDocuments(folder: string, visibility: Visibility =
       entries = await readdir(current, { withFileTypes: true });
     } catch { warnings.push(`Cannot read directory: ${directory || '.'}. Check access and reload.`); return; }
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (denied.has(entry.name) || entry.name.startsWith('.mdboard-')) continue;
+      if (denied.has(entry.name.toLowerCase()) || entry.name.startsWith('.mdboard-')) continue;
       const path = directory ? `${directory}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
         folders.push(path);

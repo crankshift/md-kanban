@@ -7,7 +7,7 @@ import { WriteError } from './writes.js';
 import { readDocument } from './documents.js';
 
 const folderSchema = z.union([z.literal(''), issueWriteSchema.shape.path]);
-const nameSchema = z.string().min(1).max(240).refine(v => v.trim() === v && !/[\\/\x00-\x1f:]/.test(v) && !['.', '..', '.git'].includes(v) && !v.startsWith('.mdboard-'), 'Use one safe name without path separators.');
+const nameSchema = z.string().min(1).max(240).refine(v => v.trim() === v && !/[\\/\x00-\x1f:]/.test(v) && !['.', '..', '.git'].includes(v.toLowerCase()) && !v.startsWith('.mdboard-'), 'Use one safe name without path separators.');
 export const newDocumentSchema = z.object({ folder: folderSchema, filename: nameSchema.refine(v => /\.(md|markdown)$/i.test(v), 'Use a Markdown filename.'), title: titleSchema,
   status: z.string().trim().max(500).refine(v => !/[\x00-\x1f\x7f]/.test(v)).default(''), body: z.string().max(500_000).refine(v => !v.includes('\0')).default(''),
 }).strict();
@@ -20,7 +20,7 @@ async function safeDirectory(root: string, path: string) {
   for (const part of [null, ...path.split('/').filter(Boolean)]) {
     if (part !== null) current = join(current, part);
     const stat = await lstat(current);
-    if (part === '.git' || !stat.isDirectory() || stat.isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Choose a real in-boundary folder, without symbolic links.');
+    if (part?.toLowerCase() === '.git' || !stat.isDirectory() || stat.isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Choose a real in-boundary folder, without symbolic links.');
   }
   if (await realpath(current) !== current || !(current === root || current.startsWith(root + sep))) throw new WriteError(400, 'invalid_path', 'The folder changed. Reload.');
   return current;

@@ -20,10 +20,11 @@ export default function DocumentCreator({ scope, status, documents, folders, hid
   const client = useQueryClient();
   const recovered = client.getMutationCache().getAll().find(m => String(m.mutationId) === recovery)?.state.variables as { body: { folder: string; title: string; filename: string; status: string; body: string } } | undefined;
   const [draft, setDraft] = useState(recovered?.body ?? { folder: scope, title: '', filename: '', status, body: '' });
-  useEffect(() => { if (scope !== initial.current.folder) setDraft(previous => ({ ...previous, folder: scope })); }, [scope]);
+  const previousScope = useRef(scope);
+  useEffect(() => { if (scope !== previousScope.current) { setDraft(previous => ({ ...previous, folder: scope })); previousScope.current = scope; } }, [scope]);
   const touched = useRef(!!recovered), initial = useRef(draft);
   const { mutation, busy } = useDocumentWrite(sessionToken);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial.current);
+  const dirty = !!recovered || JSON.stringify(draft) !== JSON.stringify(initial.current);
   const allow = useDraftGuard(dirty || !!recovered, mutation.isPending);
   const suggestions = useMemo(() => [...new Set(documents.filter(d => !draft.folder || d.path.startsWith(draft.folder + '/')).filter(d => d.status.key.startsWith('value:')).map(d => d.status.label))], [documents, draft.folder]);
   const filename = touched.current ? draft.filename : filenameFor(documents, draft.folder, draft.title);
@@ -50,8 +51,6 @@ export function FolderCreator({ parent, folders, sessionToken, onClose, onCreate
 }
 
 function FolderDraftGuard({ dirty, pending, allowClose }: { dirty: boolean; pending: boolean; allowClose: { current: boolean } }) {
-  // Reuse the form guard; folder URL identity is handled by a protected file/tool/create sentinel.
-  const allow = useDraftGuard(dirty, pending, ['newFolder'], allowClose);
-  if (allowClose.current) allow();
+  useDraftGuard(dirty, pending, ['newFolder'], allowClose);
   return null;
 }

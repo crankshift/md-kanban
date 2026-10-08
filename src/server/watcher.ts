@@ -23,7 +23,7 @@ async function markdownVersions(folder: string, options: BoardWatcherOptions): P
   async function walk(directory: string, relative = '') {
     if ((await lstat(directory)).isSymbolicLink() || await realpath(directory) !== directory) throw new Error('Directory changed');
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.name.startsWith('.mdboard-') || documentExcluded.has(entry.name)) continue;
+      if (entry.name.startsWith('.mdboard-') || documentExcluded.has(entry.name.toLowerCase())) continue;
       const path = join(directory, entry.name);
       try {
         if (entry.isDirectory()) {
@@ -40,7 +40,7 @@ async function markdownVersions(folder: string, options: BoardWatcherOptions): P
     }
   }
   await walk(folder);
-  if (options.opened && !options.opened.split('/').some(p => p === '..' || p === '.git' || !p) && !/[\\:]/.test(options.opened)) {
+  if (options.opened && !options.opened.split('/').some(p => p === '..' || p.toLowerCase() === '.git' || !p) && !/[\\:]/.test(options.opened)) {
     let current = folder;
     try {
       for (const part of options.opened.split('/')) { current = join(current, part); if ((await lstat(current)).isSymbolicLink()) throw new Error('symlink'); }
@@ -107,7 +107,7 @@ export async function createBoardWatcher(folder: string, options: BoardWatcherOp
   };
   // Lock and temporary files from our own writes never affect discovery.
   const relevant = (filename: string | null): boolean => filename === null ||
-    (!basename(filename).startsWith('.mdboard-') && !filename.split(sep).some((part) => documentExcluded.has(part)));
+    (!basename(filename).startsWith('.mdboard-') && !filename.split(sep).some((part) => documentExcluded.has(part.toLowerCase())));
 
   if (native) {
     try {

@@ -21,7 +21,7 @@ export async function createIssueWriter(folder: string) {
     let current = root;
     for (const part of [null, ...relative(root, path).split(sep).filter(Boolean)]) {
       if (part !== null) current = join(current, part);
-      if (part === '.git' || (await lstat(current)).isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Symbolic links cannot be edited. Reload issues.');
+      if (part?.toLowerCase() === '.git' || (await lstat(current)).isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Symbolic links cannot be edited. Reload issues.');
     }
     if (await realpath(path) !== path) throw new WriteError(400, 'invalid_path', 'Issue path changed. Reload issues.');
   }
@@ -48,7 +48,7 @@ export async function createIssueWriter(folder: string) {
 
   return {
     // Later field/body/comment edits reuse the same revision check and filesystem transaction.
-    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string, allowDiagnostics = false): Promise<Issue> {
+    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string): Promise<Issue> {
       const validated = issueWriteSchema.safeParse(request);
       if (!validated.success) return Promise.reject(new WriteError(400, 'invalid_request', 'Supply a root-relative issue path and expected revision.'));
       request = validated.data;

@@ -81,7 +81,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
           if (pathname === '/api/source') {
             const parsed = repairSchema.safeParse(value);
             if (!parsed.success || !('content' in parsed.data)) throw new WriteError(400, 'invalid_request', 'Supply a relative Markdown path, expected revision and source.');
-            await writer.update(parsed.data, () => 'content' in parsed.data ? parsed.data.content : '', true);
+            await writer.update(parsed.data, () => 'content' in parsed.data ? parsed.data.content : '');
             json(response, 200, await readDocument(creationRoot, parsed.data.path));
           } else json(response, 201, pathname === '/api/folders' ? await createFolder(creationRoot, value) : await createDocument(creationRoot, value));
         } catch (error) {
@@ -115,7 +115,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
           if (request.headers['x-mdboard-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
           const parsed = repairSchema.safeParse(await readJson(request, 1024 * 1024));
           if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
-          json(response, 200, await writer.update(parsed.data, (issue) => 'content' in parsed.data ? parsed.data.content : repairMarkdown(parsed.data.changes.status === undefined ? issue.content! : patchDocumentStatus(issue.content!, parsed.data.changes.status), { changes: { type: parsed.data.changes.type } }), true));
+          json(response, 200, await writer.update(parsed.data, (issue) => 'content' in parsed.data ? parsed.data.content : repairMarkdown(parsed.data.changes.status === undefined ? issue.content! : patchDocumentStatus(issue.content!, parsed.data.changes.status), { changes: { type: parsed.data.changes.type } })));
         } catch (error) {
           const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Cannot repair issue. Reload and try again.');
           json(response, failure.status, { error: failure.message, code: failure.code });

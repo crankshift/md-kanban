@@ -75,6 +75,10 @@ test('missing, blank, quoted and flow-map status patches preserve exact unrelate
     ['---\nOwner: Ada\n---\n# N\n', 'Awaiting: author', '---\nOwner: Ada\nStatus: "Awaiting: author"\n---\n# N\n'],
     ['# N\n\nOwner: Ada\n\nBody.\n', 'Next', '# N\n\nStatus: Next\n\nOwner: Ada\n\nBody.\n'],
     ['---\r\nStatus: # keep\r\nOwner: Ada\r\n---\r\n# N', 'Ready', '---\r\nStatus: Ready # keep\r\nOwner: Ada\r\n---\r\n# N'],
+    ['```md\n# Example\n```\n\nActual prose.\n', 'Next', 'Status: Next\n```md\n# Example\n```\n\nActual prose.\n'],
+    ['---\n" Status ": Ready\nOwner: Ada\n---\n# N', 'Next', '---\n" Status ": Next\nOwner: Ada\n---\n# N'],
+    ['---\n{Status: Ready # status comment\n, Owner: Ada}\n---\n# N', null, '---\n{ # status comment\n Owner: Ada}\n---\n# N'],
+    ['---\n{Owner: Ada, }\n---\n# N', 'Ready', '---\n{Owner: Ada, Status: Ready}\n---\n# N'],
     ['---\n{Owner: Ada}\n---\n# N', 'Ready', '---\n{Owner: Ada, Status: Ready}\n---\n# N'],
     ['---\n{Status: Ready, Owner: Ada}\n---\n# N', null, '---\n{ Owner: Ada}\n---\n# N'],
   ];

@@ -266,4 +266,12 @@ test('failed source drafts can reopen and lost comment responses never retry aut
   assert.equal(writes, 1); assert.equal(field(ui, 'Comment').value, 'Exactly once comment.');
   assert.equal((await readFile(join(ui.folder, 'note.md'), 'utf8')).split('Exactly once comment.').length - 1, 1);
   assert.ok(button(ui, 'Append comment').disabled, 'changed disk revision requires explicit review/reapply');
+  await ui.click(button(ui, 'Close Add comment'));
+  globalThis.fetch = nativeFetch;
+  await ui.click(button(ui, 'Recover failed draft'));
+  await ui.until(() => field(ui, 'Comment')?.value === 'Exactly once comment.', 'reopened lost-response draft');
+  await ui.click(button(ui, 'Discard mine'));
+  assert.equal(field(ui, 'Comment').value, '', 'discard uses latest disk rather than recovered mutation variables');
+  assert.equal(button(ui, 'Recover failed draft'), undefined, 'explicit discard clears failed recovery');
+  assert.ok(button(ui, 'Append comment').disabled);
 });

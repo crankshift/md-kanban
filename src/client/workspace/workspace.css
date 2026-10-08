@@ -4,3 +4,6 @@
 .markdown-workspace .react-flow__attribution { bottom: 36px; background: var(--chakra-colors-bg-panel); color: var(--chakra-colors-fg-muted); }
 .markdown-workspace .react-flow__controls-button { box-sizing: content-box; }
 @media (prefers-reduced-motion: reduce) { .markdown-workspace * { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Descendant card cursors must not override the active drag cursor, including portals. */
+.mdboard-dragging, .mdboard-dragging * { cursor: grabbing !important; }
