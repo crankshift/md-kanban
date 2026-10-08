@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-08
+
 ### Changed
 
 - Faster first load: the issue tools overlays (details, editor, creator, repair, dependencies) and the Markdown rendering pipeline now load on demand instead of parsing on every visit, and vendor code is split into dedicated `react` and `chakra` chunks. The entry chunk shrank from 1,284 kB to 404 kB.
@@ -64,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supporting Markdown documents now refresh through live file-change events.
 - Packed installations require only `open` and `zod` at runtime; client libraries ship in prebuilt assets.
 
-[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/crankshift/md-kanban/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/crankshift/md-kanban/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/crankshift/md-kanban/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/crankshift/md-kanban/releases/tag/v0.1.0
