@@ -54,7 +54,7 @@ test('installed tarball serves its own frontend against a separate folder and sh
   const board = await (await fetch(`${url}/api/issues`)).json();
   assert.equal(board.issues.length, 1);
   assert.equal(board.issues[0].title, 'Packaged issue');
-  assert.equal(board.issues[0].workflow, 'implementation');
+  assert.equal(board.issues[0].workflow, null);
   // Supporting documents stay inside the selected folder and are never cards.
   const { documents, edges } = await (await fetch(`${url}/api/documents`)).json();
   assert.deepEqual(documents.map((document) => [document.kind, document.path]), [['document', '01-example.md'], ['document', 'note.markdown'], ['specification', 'spec.md']]);
@@ -70,11 +70,9 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(saved.status, 200);
   assert.equal((await saved.json()).status, 'needs-info');
   assert.equal(await readFile(join(folder, '01-example.md'), 'utf8'), '# 01: Packaged issue\n\nStatus: needs-info\n');
-  const [target] = await (await fetch(`${url}/api/creation-targets`)).json();
   const created = await fetch(`${url}/api/create`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mdboard-Session': context.sessionToken, Origin: url },
-    body: JSON.stringify({ container: target.container, expectedRevision: target.revision, workflow: target.workflow,
-      title: 'Created from package', status: 'needs-triage', body: '## Outcome\nPortable packaged creation.', dependencies: ['01-example.md'] }),
+    body: JSON.stringify({ folder: '', filename: '02-created-from-package.md', title: 'Created from package', status: 'Custom packaged status', body: '## Outcome\nPortable packaged creation.' }),
   });
   assert.equal(created.status, 201);
   const newIssue = await created.json();

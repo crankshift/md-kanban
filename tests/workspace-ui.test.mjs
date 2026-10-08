@@ -50,31 +50,25 @@ test('folder expansion restores from the URL and Chakra navigation persists expa
   assert.ok(button(ui, 'Read top.md'), 'direct folder retains top-level Markdown alongside docs');
 });
 
-test('generic Board separates missing, literal No value, conflicts and authored Folder from physical folder', async (t) => {
-  const ui = await renderBoard(t, { ...files, 'docs/D.md': '# D\n\nStatus: No value (missing property)' }, true, { address: 'http://localhost/?view=board&group=property%3Astatus' });
-  await ui.until(() => field(ui, 'Document board'), 'generic board');
-  const columns = () => [...ui.document.querySelectorAll('.generic-column')];
-  assert.equal(columns().filter((node) => node.querySelector('h2,h3').textContent === 'No value').length, 2);
-  assert.match(ui.document.querySelector('[data-group="missing"]').textContent, /Missing property/, 'missing and literal values are visibly distinguishable');
-  assert.ok(columns().some((node) => /Conflicting: sunrise · moonlight/.test(node.textContent)));
-  assert.equal(ui.document.querySelector('[draggable="true"]'), null);
+test('authored status board separates system/literal groups and keeps scope destinations under filters', async t => {
+  const ui = await renderBoard(t, { ...files, 'docs/D.md': '# D\nStatus: No status', 'docs/E.md': '# E\nStatus: Check status', 'docs/lower.md': '# Lower\nStatus: MOONLIGHT', 'sibling/n.md': '# Sibling\nStatus: Sibling only' }, true, { address: 'http://localhost/?view=board&folder=docs' });
+  await ui.until(() => ui.document.querySelector('[data-drop-status="value:moonlight"]'), 'status board');
+  const columns = () => [...ui.document.querySelectorAll('[data-drop-status]')];
+  assert.ok(ui.document.querySelector('[data-drop-status="@none"]'));
+  assert.ok(ui.document.querySelector('[data-drop-status="@check"]'));
+  assert.ok(ui.document.querySelector('[data-drop-status="value:no status"]'));
+  assert.ok(ui.document.querySelector('[data-drop-status="value:check status"]'));
+  assert.equal(columns().filter(c => c.dataset.dropStatus === 'value:moonlight').length, 1);
+  assert.equal(ui.document.querySelector('[data-drop-status="value:sibling only"]'), null);
+  await ui.change(field(ui, 'Search Markdown files'), 'Lower');
+  assert.equal(ui.document.querySelectorAll('[data-status-card]').length, 1);
+  assert.ok(ui.document.querySelector('[data-drop-status="value:no status"]'), 'filter keeps destination');
+  await ui.click(button(ui, 'Add status')); await ui.change(field(ui, 'New status label'), 'Invented destination'); await ui.click(button(ui, 'Add destination'));
+  assert.ok(ui.document.querySelector('[data-drop-status="value:invented destination"]'));
+  await ui.click(button(ui, 'Files')); await ui.click(button(ui, 'Board'));
+  await ui.until(() => ui.document.querySelector('[data-drop-status="value:invented destination"]'), 'session destination survives views');
   await ui.change(field(ui, 'Group by'), 'Folder property');
-  assert.ok(columns().some((node) => /^authored/.test(node.textContent)));
-  await ui.change(field(ui, 'Group by'), 'Physical folder');
-  assert.ok(columns().some((node) => /^docs/.test(node.textContent)));
-  await ui.change(field(ui, 'Property'), 'Status');
-  await ui.change(field(ui, 'Value'), '"moonlight"');
-  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
-  assert.ok(button(ui, 'Read docs/A.md'));
-  await ui.change(field(ui, 'Value'), 'No value (missing property)');
-  assert.ok(button(ui, 'Read .scratch/archive/notes.markdown'));
-  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
-  await ui.change(field(ui, 'Value'), '"No value"');
-  assert.ok(button(ui, 'Read docs/B.md'));
-  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
-  await ui.change(field(ui, 'Value'), '"No value (missing property)"');
-  assert.ok(button(ui, 'Read docs/D.md'), 'an authored value matching the special label has a quoted, distinct choice');
-  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
+  assert.ok(ui.document.querySelector('.generic-column'), 'other property boards remain available');
 });
 
 test('live generic discovery, reader and relationships update across edits, atomic replacement, rename and removal', async (t) => {
@@ -95,71 +89,67 @@ test('live generic discovery, reader and relationships update across edits, atom
   assert.equal(new URL(ui.document.defaultView.location.href).searchParams.get('file'), 'docs/A.md', 'navigation survives deletion');
 });
 
-test('optional issue tools preserve a dirty draft during refresh and reject navigation until explicitly discarded', async (t) => {
-  const ui = await renderBoard(t, files, true, { live: true });
-  await ui.until(() => button(ui, 'Read .scratch/work/issues/01-supported.md'), 'collection');
-  await ui.click(button(ui, 'Read .scratch/work/issues/01-supported.md'));
-  await ui.until(() => button(ui, 'Issue tools'), 'optional tools');
-  await ui.click(button(ui, 'Issue tools'));
-  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
-  await ui.change(field(ui, 'Issue title'), 'Protected draft');
-  await writeFile(join(ui.folder, '.scratch/work/issues/01-supported.md'), files['.scratch/work/issues/01-supported.md'].replace('Original body.', 'External body.'));
-  await ui.until(() => /changed outside|Changed on disk/.test(ui.document.body.textContent), 'stale notice');
-  assert.equal(field(ui, 'Issue title').value, 'Protected draft');
-  let confirmations = 0;
-  ui.document.defaultView.confirm = () => { confirmations++; return false; };
-  await ui.click(button(ui, 'Close Issue details'));
-  assert.equal(confirmations, 1);
-  assert.equal(field(ui, 'Issue title').value, 'Protected draft');
-  await ui.click(button(ui, 'Save issue'));
-  await ui.settled();
-  assert.match(await readFile(join(ui.folder, '.scratch/work/issues/01-supported.md'), 'utf8'), /# 01: Supported/);
-  assert.equal(field(ui, 'Issue title').value, 'Protected draft');
+test('ordinary document drafts survive refresh and require explicit discard; source saves and comments use disk', async t => {
+  const ui = await renderBoard(t, { 'ordinary.md': '# Ordinary\n\nOriginal body.', 'other.md': '# Other' }, true, { live: true });
+  await ui.until(() => button(ui, 'Read ordinary.md'), 'collection'); await ui.click(button(ui, 'Read ordinary.md'));
+  await ui.until(() => button(ui, 'Edit'), 'generic tools'); await ui.click(button(ui, 'Edit'));
+  await ui.until(() => field(ui, 'Markdown source'), 'source editor');
+  await ui.change(field(ui, 'Markdown source'), '# Ordinary\n\nProtected draft.');
+  await writeFile(join(ui.folder, 'ordinary.md'), '# Ordinary\n\nExternal body.');
+  await ui.until(() => /changed on disk/.test(ui.document.body.textContent), 'external refresh');
+  assert.match(field(ui, 'Markdown source').value, /Protected draft/);
+  let confirmations = 0; ui.document.defaultView.confirm = () => { confirmations++; return false; };
+  await ui.click(button(ui, 'Close Edit document')); assert.equal(confirmations, 1); assert.ok(field(ui, 'Markdown source'));
+  ui.document.defaultView.confirm = () => true;
+  await ui.click(button(ui, 'Reapply mine on latest')); await ui.click(button(ui, 'Save document'));
+  await ui.until(() => !field(ui, 'Markdown source'), 'saved editor closes');
+  assert.match(await readFile(join(ui.folder, 'ordinary.md'), 'utf8'), /Protected draft/);
+  await ui.click(button(ui, 'Add comment')); await ui.until(() => field(ui, 'Comment'), 'comment editor');
+  await ui.change(field(ui, 'Comment'), 'Ordinary author comment.'); await ui.click(button(ui, 'Append comment'));
+  await ui.until(() => !field(ui, 'Comment'), 'comment saved');
+  assert.match(await readFile(join(ui.folder, 'ordinary.md'), 'utf8'), /## Comments\n\nOrdinary author comment/);
 });
 
-test('production issue tools create, edit, comment and change supported status while ordinary documents stay read-only', async (t) => {
-  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n', 'ordinary.md': '# Ordinary' }, true, {});
-  await ui.until(() => button(ui, 'Read ordinary.md'), 'collection');
-  await ui.click(button(ui, 'Read ordinary.md'));
-  await ui.until(() => reader(ui)?.textContent.includes('Ordinary'), 'ordinary reader');
-  assert.equal(button(ui, 'Issue tools'), undefined);
-  await ui.click(button(ui, 'New issue'));
-  await ui.until(() => field(ui, 'New issue title'), 'issue creator');
-  await ui.change(field(ui, 'New issue title'), 'Production creation');
-  await ui.change(field(ui, 'New issue body'), 'Original created body.');
-  await ui.click(button(ui, 'Create issue'));
-  await ui.until(() => field(ui, 'Issue title')?.value === 'Production creation', 'saved creation tools');
-  const path = new URL(ui.document.defaultView.location.href).searchParams.get('file');
-  assert.equal(path, 'issues/02-production-creation.md');
-  await ui.change(field(ui, 'Markdown body'), 'Updated created body.');
-  await ui.click(button(ui, 'Save issue'));
-  await ui.settled();
-  await ui.change(field(ui, 'New comment'), 'A preserved production comment.');
-  await ui.click(button(ui, 'Append comment'));
-  await ui.settled();
-  await ui.change(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'needs-info');
-  await ui.settled();
-  const saved = await readFile(join(ui.folder, path), 'utf8');
-  assert.match(saved, /Status: needs-info/);
-  assert.match(saved, /Updated created body\./);
-  assert.match(saved, /## Comments\n\nA preserved production comment\./);
-  await ui.click(button(ui, 'Close Issue details'));
-  await ui.until(() => reader(ui)?.textContent.includes('A preserved production comment.'), 'reader reflects the saved document');
+test('New issue creates an immediate empty folder, retains it after cancellation, and accepts arbitrary status', async t => {
+  const ui = await renderBoard(t, { 'note.md': '# Note' }, true);
+  await ui.until(() => button(ui, 'New issue'), 'workspace'); await ui.click(button(ui, 'New issue'));
+  await ui.until(() => field(ui, 'Issue title'), 'creator'); await ui.change(field(ui, 'Issue title'), 'Production creation');
+  // Use the button inside the creator rather than the tree's same-named action.
+  await ui.click([...ui.document.querySelectorAll('[role="dialog"] button')].find(node => node.textContent === 'New folder'));
+  await ui.until(() => field(ui, 'Folder name'), 'folder form'); await ui.change(field(ui, 'Folder name'), 'empty'); await ui.click(button(ui, 'Create folder'));
+  await ui.until(() => button(ui, 'Scope empty'), 'real empty directory');
+  assert.deepEqual(await import('node:fs/promises').then(fs => fs.readdir(join(ui.folder, 'empty'))), []);
+  ui.document.defaultView.confirm = () => true; await ui.click(button(ui, 'Close New issue'));
+  assert.ok(button(ui, 'Scope empty'), 'folder remains after cancellation'); await ui.click(button(ui, 'Scope empty'));
+  await ui.click(button(ui, 'New issue')); await ui.until(() => field(ui, 'Issue title'), 'new creator');
+  await ui.change(field(ui, 'Issue title'), 'Production creation'); await ui.change(field(ui, 'Issue status'), 'Invented status'); await ui.change(field(ui, 'Issue body'), 'Body.');
+  assert.equal(field(ui, 'Issue filename').value, 'production-creation.md'); await ui.click(button(ui, 'Create issue'));
+  await ui.until(() => reader(ui)?.textContent.includes('Production creation'), 'created reader');
+  assert.equal(await readFile(join(ui.folder, 'empty/production-creation.md'), 'utf8'), '# Production creation\n\nStatus: Invented status\n\nBody.\n');
 });
 
-test('Markdown previews keep relative links inert so a draft cannot be navigated away', async (t) => {
-  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n' }, true);
-  await ui.until(() => button(ui, 'Read issues/01-existing.md'), 'collection');
-  await ui.click(button(ui, 'Read issues/01-existing.md'));
-  await ui.until(() => button(ui, 'Issue tools'), 'issue capability');
-  await ui.click(button(ui, 'Issue tools'));
-  await ui.until(() => field(ui, 'Markdown body'), 'issue editor');
-  await ui.change(field(ui, 'Markdown body'), 'See [the spec](../spec.md) and [site](https://example.com).');
-  await ui.click(button(ui, 'Preview'));
-  const preview = ui.document.querySelector('[aria-label="Body preview"]');
-  assert.equal(preview.querySelectorAll('a[href="../spec.md"]').length, 0);
+test('hidden scope falls back, explicit hidden links read without collection expansion and refresh live', async t => {
+  const ui = await renderBoard(t, { 'tickets/a.md': '# A\nStatus: Local\n\n[Hidden](../node_modules/pkg/n.md)', 'node_modules/pkg/n.md': '# Hidden\nStatus: Vendor', 'notes/n.md': '# Note\nStatus: Sibling' }, true, { live: true, address: 'http://localhost/?folder=tickets&view=board' });
+  await ui.until(() => ui.document.querySelector('[data-status-card="tickets/a.md"]'), 'board');
+  await ui.click(ui.document.querySelector('[data-status-card="tickets/a.md"]'));
+  await ui.until(() => reader(ui)?.querySelector('a'), 'reader link'); await ui.click(reader(ui).querySelector('a'));
+  await ui.until(() => reader(ui)?.textContent.includes('Vendor'), 'explicit hidden reader');
+  assert.equal(ui.document.querySelector('[data-drop-status="value:vendor"]'), null);
+  await writeFile(join(ui.folder, 'node_modules/pkg/n.md'), '# Hidden changed\nStatus: Vendor');
+  await ui.until(() => reader(ui)?.textContent.includes('Hidden changed'), 'hidden opened refresh');
+  await ui.click(button(ui, 'Hide tickets')); await ui.until(() => new URL(ui.document.defaultView.location.href).searchParams.get('folder') === null, 'ancestor fallback');
+  assert.match(reader(ui).textContent, /Hidden changed/);
+  await ui.click(button(ui, 'Show node_modules')); await ui.until(() => ui.document.querySelector('[data-drop-status="value:vendor"]'), 'revealed collection');
+});
+
+test('Markdown draft preview keeps relative links inert', async t => {
+  const ui = await renderBoard(t, { 'note.md': '# Note' }, true);
+  await ui.until(() => button(ui, 'Read note.md'), 'collection'); await ui.click(button(ui, 'Read note.md'));
+  await ui.until(() => button(ui, 'Edit'), 'tools'); await ui.click(button(ui, 'Edit'));
+  await ui.until(() => field(ui, 'Markdown source'), 'source editor'); await ui.change(field(ui, 'Markdown source'), 'See [the spec](spec.md) and [site](https://example.com).');
+  await ui.click(button(ui, 'Preview')); const preview = ui.document.querySelector('[aria-label="Document draft preview"]');
+  assert.equal(preview.querySelectorAll('a[href="spec.md"]').length, 0);
   assert.equal(preview.querySelector('span[title="Document links open from the saved Markdown."]').textContent, 'the spec');
-  assert.equal(preview.querySelector('a[href="https://example.com"]').getAttribute('target'), '_blank');
 });
 
 test('React Flow keeps measured A/B/C cards visible and stationary while C is hovered with A selected, including live refresh', async (t) => {
@@ -216,4 +206,72 @@ test('local maps retain reciprocal direction, separate incoming/outgoing/two-way
   await ui.click(button(ui, 'Dependencies'));
   assert.equal(ui.document.querySelectorAll('.react-flow__edge').length, 1);
   assert.match(ui.document.querySelector('.react-flow__edge').getAttribute('aria-label'), /dependency/);
+});
+
+test('production pointer sensor follows the original grab point, cancels safely and moves with captured revisions', async t => {
+  const ui = await renderBoard(t, { 'a.md': '# A\nStatus: Alpha\n\nKeep body.', 'b.md': '# B\nStatus: Beta\n' }, true, { address: 'http://localhost/?view=board' });
+  await ui.until(() => ui.document.querySelector('[data-status-card="a.md"]'), 'board');
+  const win = ui.document.defaultView;
+  const original = win.HTMLElement.prototype.getBoundingClientRect;
+  win.HTMLElement.prototype.getBoundingClientRect = function() {
+    const column = this.closest('[data-drop-status]');
+    if (!column) return original.call(this);
+    const index = [...ui.document.querySelectorAll('[data-drop-status]')].indexOf(column), card = this.hasAttribute('data-status-card');
+    const x = 250 + index * 230 + (card ? 8 : 0), y = card ? 300 : 230, width = card ? 194 : 210, height = card ? 80 : 500;
+    return { x, y, left: x, top: y, right: x + width, bottom: y + height, width, height, toJSON() { return this; } };
+  };
+  const pointer = async (target, type, x, y) => act(async () => {
+    const event = new win.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true }, pointerType: { value: 'mouse' } });
+    target.dispatchEvent(event); await new Promise(resolve => setTimeout(resolve, 30));
+  });
+  const card = () => ui.document.querySelector('[data-status-card="a.md"]');
+  await pointer(card(), 'pointerdown', 280, 320); await pointer(ui.document, 'pointermove', 320, 350); await pointer(ui.document, 'pointermove', 350, 370);
+  const overlay = ui.document.querySelector('[data-drag-preview]'); assert.ok(overlay); assert.equal(getComputedStyle(overlay).width, '194px'); assert.equal(getComputedStyle(overlay).height, '80px');
+  const first = overlay.parentElement.style.transform;
+  assert.equal(getComputedStyle(card()).opacity, '0.3'); assert.equal(ui.document.body.style.cursor, 'grabbing');
+  await pointer(ui.document, 'pointermove', 390, 410); assert.notEqual(overlay.parentElement.style.transform, first, 'overlay follows pointer movement');
+  await pointer(ui.document, 'pointercancel', 390, 410);
+  assert.equal(ui.document.querySelector('[data-drag-preview]'), null); assert.equal(ui.document.body.style.cursor, '');
+  assert.equal(await readFile(join(ui.folder, 'a.md'), 'utf8'), '# A\nStatus: Alpha\n\nKeep body.');
+  await pointer(card(), 'pointerdown', 280, 320); await pointer(ui.document, 'pointermove', 520, 360); await pointer(ui.document, 'pointermove', 540, 370); await pointer(ui.document, 'pointerup', 540, 370);
+  await ui.until(() => ui.document.querySelector('[data-drop-status="value:beta"] [data-status-card="a.md"]'), 'optimistic destination'); await ui.settled();
+  assert.equal(await readFile(join(ui.folder, 'a.md'), 'utf8'), '# A\nStatus: Beta\n\nKeep body.');
+  await pointer(card(), 'pointerdown', 520, 320); await pointer(ui.document, 'pointermove', 560, 350);
+  const external = '# A\nStatus: External author\n\nLatest external content.';
+  await writeFile(join(ui.folder, 'a.md'), external);
+  await pointer(ui.document, 'pointermove', 760, 380); await pointer(ui.document, 'pointerup', 760, 380);
+  await ui.until(() => /changed on disk/.test(ui.document.body.textContent), 'stale pickup rejection');
+  assert.equal(await readFile(join(ui.folder, 'a.md'), 'utf8'), external);
+  await ui.until(() => ui.document.querySelector('[data-drop-status="value:external author"] [data-status-card="a.md"]'), 'latest author refresh after rollback');
+});
+
+test('failed source drafts can reopen and lost comment responses never retry automatically', async t => {
+  const ui = await renderBoard(t, { 'note.md': '# Note\n\nOriginal.' }, true);
+  await ui.until(() => button(ui, 'Read note.md'), 'collection'); await ui.click(button(ui, 'Read note.md'));
+  await ui.until(() => button(ui, 'Edit'), 'tools'); await ui.click(button(ui, 'Edit')); await ui.until(() => field(ui, 'Markdown source'), 'editor');
+  await ui.change(field(ui, 'Markdown source'), '# Note\n\nRetained failed source.');
+  const nativeFetch = globalThis.fetch; t.after(() => { globalThis.fetch = nativeFetch; });
+  globalThis.fetch = async (url, options) => { if (url === '/api/source' && options?.method === 'POST') throw new Error('Disconnected save'); return nativeFetch(url, options); };
+  await ui.click(button(ui, 'Save document')); await ui.until(() => /Disconnected save/.test(ui.document.body.textContent), 'failed write');
+  assert.match(field(ui, 'Markdown source').value, /Retained failed source/);
+  ui.document.defaultView.confirm = () => true; await ui.click(button(ui, 'Close Edit document'));
+  globalThis.fetch = nativeFetch; await ui.click(button(ui, 'Recover failed draft'));
+  await ui.until(() => field(ui, 'Markdown source')?.value.includes('Retained failed source'), 'recovered submitted source');
+  await ui.click(button(ui, 'Save document')); await ui.until(() => !field(ui, 'Markdown source'), 'saved recovery');
+  assert.match(await readFile(join(ui.folder, 'note.md'), 'utf8'), /Retained failed source/);
+  await ui.click(button(ui, 'Add comment')); await ui.until(() => field(ui, 'Comment'), 'comment form'); await ui.change(field(ui, 'Comment'), 'Exactly once comment.');
+  let writes = 0; globalThis.fetch = async (url, options) => { const response = await nativeFetch(url, options); if (url === '/api/comment' && options?.method === 'POST') { writes++; throw new Error('Lost comment response'); } return response; };
+  await ui.click(button(ui, 'Append comment')); await ui.until(() => /Lost comment response/.test(ui.document.body.textContent), 'lost response'); await ui.settled();
+  assert.equal(writes, 1); assert.equal(field(ui, 'Comment').value, 'Exactly once comment.');
+  assert.equal((await readFile(join(ui.folder, 'note.md'), 'utf8')).split('Exactly once comment.').length - 1, 1);
+  assert.ok(button(ui, 'Append comment').disabled, 'changed disk revision requires explicit review/reapply');
+  await ui.click(button(ui, 'Close Add comment'));
+  globalThis.fetch = nativeFetch;
+  await ui.click(button(ui, 'Recover failed draft'));
+  await ui.until(() => field(ui, 'Comment')?.value === 'Exactly once comment.', 'reopened lost-response draft');
+  await ui.click(button(ui, 'Discard mine'));
+  assert.equal(field(ui, 'Comment').value, '', 'discard uses latest disk rather than recovered mutation variables');
+  assert.equal(button(ui, 'Recover failed draft'), undefined, 'explicit discard clears failed recovery');
+  assert.ok(button(ui, 'Append comment').disabled);
 });

@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { issueWriteSchema, type Issue, type StatusChange } from './board.js';
-import { discoverIssues } from './discovery.js';
+import { DocumentError, readDocument } from './documents.js';
 import { parseIssue } from './issues.js';
 
 export class WriteError extends Error {
@@ -21,7 +21,7 @@ export async function createIssueWriter(folder: string) {
     let current = root;
     for (const part of [null, ...relative(root, path).split(sep).filter(Boolean)]) {
       if (part !== null) current = join(current, part);
-      if ((await lstat(current)).isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Symbolic links cannot be edited. Reload issues.');
+      if (part?.toLowerCase() === '.git' || (await lstat(current)).isSymbolicLink()) throw new WriteError(400, 'invalid_path', 'Symbolic links cannot be edited. Reload issues.');
     }
     if (await realpath(path) !== path) throw new WriteError(400, 'invalid_path', 'Issue path changed. Reload issues.');
   }
@@ -30,7 +30,13 @@ export async function createIssueWriter(folder: string) {
     const handle = await open(path, constants.O_RDWR | constants.O_NOFOLLOW);
     try {
       const opened = await handle.stat();
-      const bytes = await handle.readFile();
+      if (!opened.isFile()) throw new WriteError(400, 'invalid_path', 'Only regular Markdown files can be edited.');
+      if (opened.size > 2 * 1024 * 1024) throw new WriteError(413, 'preview_limit', 'Document exceeds the 2 MiB preview limit.');
+      const buffer = Buffer.allocUnsafe(2 * 1024 * 1024 + 1);
+      let length = 0;
+      while (length < buffer.length) { const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null); if (!bytesRead) break; length += bytesRead; }
+      if (length === buffer.length) throw new WriteError(413, 'preview_limit', 'Document exceeds the 2 MiB preview limit.');
+      const bytes = buffer.subarray(0, length);
       await checkPath(path);
       const checked = await lstat(path);
       if (!opened.isFile() || opened.dev !== checked.dev || opened.ino !== checked.ino || revision(bytes) !== expected) throw conflict();
@@ -42,7 +48,7 @@ export async function createIssueWriter(folder: string) {
 
   return {
     // Later field/body/comment edits reuse the same revision check and filesystem transaction.
-    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string, allowDiagnostics = false): Promise<Issue> {
+    update(request: Pick<StatusChange, 'path' | 'expectedRevision'>, transform: (issue: Issue) => string): Promise<Issue> {
       const validated = issueWriteSchema.safeParse(request);
       if (!validated.success) return Promise.reject(new WriteError(400, 'invalid_request', 'Supply a root-relative issue path and expected revision.'));
       request = validated.data;
@@ -52,10 +58,12 @@ export async function createIssueWriter(folder: string) {
         let temporary: string | undefined;
         let lock: string | undefined;
         try {
-          // Authorize discovered issue identities, never arbitrary Markdown/supporting documents.
-          const board = await discoverIssues(root);
-          const context = board.issues.find((issue) => issue.path === request.path);
-          if (!context) throw new WriteError(404, 'issue_unavailable', 'Issue is unavailable in the selected folder. Reload issues and check its path.');
+          // Authorize a readable Markdown identity independently of collection visibility/workflow.
+          if (!/\.(md|markdown)$/i.test(request.path)) throw new WriteError(400, 'invalid_path', 'Only Markdown documents can be edited.');
+          await readDocument(root, request.path);
+          const container = relative(root, dirname(path)).split(sep).join('/') || '.';
+          const featureDirectory = ['issues', 'tickets'].includes(basename(dirname(path))) ? dirname(dirname(path)) : dirname(path);
+          const context = { path: request.path, container, feature: basename(featureDirectory), location: featureDirectory === root ? '.' : relative(root, dirname(featureDirectory)).split(sep).join('/') || '.' };
           await checkPath(path);
           const lockPath = join(dirname(path), `.mdboard-${createHash('sha256').update(basename(path)).digest('hex')}.lock`);
           try {
@@ -71,12 +79,11 @@ export async function createIssueWriter(folder: string) {
           }
           const current = await readCurrent(path, request.expectedRevision);
           const issue = parseIssue(context, current.bytes.toString('utf8'));
-          if (!allowDiagnostics && !issue.workflow) throw new WriteError(422, 'needs_attention', 'Issue metadata needs attention. Check the Markdown and reload issues.');
           let content: string;
           try { content = transform(issue); }
           catch (error) { throw new WriteError(422, 'invalid_change', error instanceof Error ? error.message : 'Invalid issue change.'); }
+          if (Buffer.byteLength(content, 'utf8') > 2 * 1024 * 1024) throw new WriteError(413, 'preview_limit', 'Document exceeds the 2 MiB preview limit.');
           const saved = parseIssue(context, content);
-          if (!allowDiagnostics && !saved.workflow) throw new WriteError(422, 'invalid_change', 'The change would produce invalid issue metadata.');
           if (content === issue.content) return saved;
           await checkPath(dirname(path));
           temporary = join(dirname(path), `.mdboard-${randomUUID()}.tmp`);
@@ -98,6 +105,7 @@ export async function createIssueWriter(folder: string) {
           return saved;
         } catch (error) {
           if (error instanceof WriteError) throw error;
+          if (error instanceof DocumentError) throw new WriteError(error.status, 'document_unavailable', error.message);
           throw new WriteError(500, 'write_failed', 'Could not save the issue. Check folder access and that the issue still exists, then reload issues before retrying.');
         } finally {
           if (temporary) await unlink(temporary).catch(() => {});

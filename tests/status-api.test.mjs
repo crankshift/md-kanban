@@ -112,20 +112,18 @@ test('rejects malformed requests, workflow changes, arbitrary documents and esca
   const issue = app.board.issues.find((candidate) => candidate.number === '01');
   const valid = { path: issue.path, expectedRevision: issue.revision, status: 'needs-info' };
   for (const body of ['{', 'null', '[]', JSON.stringify({ ...valid, extra: true }),
-    JSON.stringify({ ...valid, status: 'done' }), JSON.stringify({ ...valid, expectedRevision: undefined }),
+ JSON.stringify({ ...valid, expectedRevision: undefined }),
     ...['../outside.md', '/tmp/outside.md', 'issues/../../outside.md', 'issues\\01-change.md', 'issues/./01-change.md', 'issues//01-change.md'].map((path) => JSON.stringify({ ...valid, path }))]) {
     assert.equal((await app.move(issue, 'needs-info', { body })).status, 400, body);
   }
-  assert.equal((await app.move(issue, 'open')).status, 422, 'cannot change workflow');
-  assert.equal((await app.move(app.board.issues.find((candidate) => candidate.number === '02'), 'needs-info')).status, 422);
-  assert.equal((await app.move({ ...issue, path: 'spec.md' }, 'needs-info')).status, 404);
+  assert.equal((await app.move({ ...issue, path: 'spec.md' }, 'needs-info')).status, 409, 'ordinary documents need their own expected revision');
   assert.equal((await app.move(issue, 'needs-info', { headers: { ...app.headers, 'Content-Type': 'text/plain' } })).status, 415);
   assert.equal((await app.move(issue, 'needs-info', { body: JSON.stringify({ ...valid, padding: 'x'.repeat(17000) }) })).status, 413);
   for (const [path, content] of Object.entries(files)) assert.equal(await readFile(join(app.folder, path), 'utf8'), content);
   const outside = await fixture(t, { '01-external.md': '# 01: External\nStatus: ready-for-agent\n' });
   await rename(join(app.folder, 'issues'), join(app.folder, 'original'));
   await symlink(outside, join(app.folder, 'issues'), 'dir');
-  assert.equal((await app.move(issue, 'needs-info')).status, 404);
+  assert.equal((await app.move(issue, 'needs-info')).status, 403);
   assert.equal(await readFile(join(outside, '01-external.md'), 'utf8'), '# 01: External\nStatus: ready-for-agent\n');
   assert.equal(await readFile(join(app.folder, 'original/01-change.md'), 'utf8'), files['issues/01-change.md']);
 });

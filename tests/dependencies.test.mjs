@@ -39,7 +39,7 @@ test('preserves commas inside dependency titles while separating subsequent numb
   assert.equal(dependencies[3].reference, 'undecided');
 });
 
-test('only a valid resolved wayfinding prerequisite stops blocking; uncertain references stay diagnosable', async (t) => {
+test('authored statuses never establish dependency completion; references remain advisory', async (t) => {
   const folder = await fixture(t, {
     '.scratch/effort/issues/01-question.md': '# 01: Question\nStatus: open\nBlocked by: 02, 03: Review, 04, 05, 06, later\n',
     '.scratch/effort/issues/02-done.md': '# 02: Decided\nStatus: resolved\n',
@@ -52,12 +52,12 @@ test('only a valid resolved wayfinding prerequisite stops blocking; uncertain re
   const { issues } = await discoverIssues(folder);
   const source = issues.find((issue) => issue.title === 'Question');
   const dependencies = resolveDependencies(source, issues);
-  assert.deepEqual(dependencies.slice(0, 4).map((entry) => entry.state), ['resolved', 'blocked', 'unknown', 'unknown']);
+  assert.deepEqual(dependencies.slice(0, 4).map((entry) => entry.state), ['advisory', 'advisory', 'advisory', 'advisory']);
   assert.equal(dependencies[4].kind, 'ambiguous');
   assert.deepEqual(dependencies[4].candidates.map((issue) => issue.title).sort(), ['First', 'Second']);
   assert.equal(dependencies[5].kind, 'unsupported');
   const refreshed = issues.map((issue) => issue.title === 'Review' ? { ...issue, status: 'resolved' } : issue);
-  assert.equal(resolveDependencies(source, refreshed)[1].state, 'resolved');
+  assert.equal(resolveDependencies(source, refreshed)[1].state, 'advisory');
 });
 
 test('recognizes supported no-dependency text without discarding unknown or empty metadata', async (t) => {

@@ -6,11 +6,14 @@ export const propertySchema = z.object({
   source: z.enum(['frontmatter', 'leading']), raw: z.string(), valid: z.boolean(),
 });
 export type DocumentProperty = z.infer<typeof propertySchema>;
+export const documentStatusSchema = z.object({ key: z.string(), label: z.string(), writable: z.boolean(), reason: z.string() });
+export type DocumentStatus = z.infer<typeof documentStatusSchema>;
 export const supportingDocumentSchema = z.object({
   path: z.string(), title: z.string(), kind: z.enum(documentKinds),
   feature: z.string().nullable(), location: z.string().nullable(),
   name: z.string(), folder: z.string(), content: z.string().nullable(),
   properties: z.array(propertySchema), diagnostics: z.array(z.string()),
+  revision: z.string().nullable(), status: documentStatusSchema,
 });
 export type SupportingDocument = z.infer<typeof supportingDocumentSchema>;
 export const relationSchema = z.object({
@@ -20,13 +23,14 @@ export const relationSchema = z.object({
 export type DocumentRelation = z.infer<typeof relationSchema>;
 export const documentListSchema = z.object({
   folder: z.string(), documents: z.array(supportingDocumentSchema),
-  edges: z.array(relationSchema), warnings: z.array(z.string()),
+  edges: z.array(relationSchema), warnings: z.array(z.string()), folders: z.array(z.string()), hidden: z.array(z.string()),
 });
 export type DocumentList = z.infer<typeof documentListSchema>;
 
 export const openedDocumentSchema = z.object({
   path: z.string(), title: z.string(), kind: z.enum(documentKinds), content: z.string(), body: z.string(),
   properties: z.array(propertySchema), diagnostics: z.array(z.string()),
+  revision: z.string().nullable(), status: documentStatusSchema,
 });
 export type OpenedDocument = z.infer<typeof openedDocumentSchema>;
 

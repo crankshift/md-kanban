@@ -40,9 +40,7 @@ export function resolveDependencies(issue: Issue, issues: Issue[]): Dependency[]
     const target = candidates[0];
     if (!target) return { reference, kind: 'missing' };
     if (candidates.length > 1) return { reference, kind: 'ambiguous', candidates };
-    const state = issue.workflow !== 'wayfinding' ? 'advisory' :
-      target.workflow !== 'wayfinding' || target.diagnostics.length > 0 ? 'unknown' :
-      target.status === 'resolved' ? 'resolved' : 'blocked';
+    const state = 'advisory';
     return { reference, kind: 'linked', target, state };
   });
 }
