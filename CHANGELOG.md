@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
 ### Added
 
 - A folder-oriented Markdown workspace with recursive `.md`/`.markdown` discovery, filename/title/body search, optional YAML/leading properties, clear metadata conflicts, and a persistent safe reader with backlinks and relative-link/fragment navigation.
@@ -57,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supporting Markdown documents now refresh through live file-change events.
 - Packed installations require only `open` and `zod` at runtime; client libraries ship in prebuilt assets.
 
-[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/crankshift/md-kanban/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/crankshift/md-kanban/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/crankshift/md-kanban/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/crankshift/md-kanban/releases/tag/v0.1.0
