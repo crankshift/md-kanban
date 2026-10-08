@@ -64,3 +64,43 @@ mdboard opens a folder-oriented Markdown workspace using approved variant A: fol
 ### Approved handoff — 2026-10-08
 
 The user requested the implementation prompt for A and specified a single branch. A is selected; graph refinements and the measured-dimension hover fix remain part of the reference. Use `feat/generic-markdown-workspace` for the entire implementation, based on production `main`, in the existing checkout. The prototype branch remains the primary-source archive. The new generic views are read-only; existing supported write capabilities are retained without making their conventions prerequisites for documents.
+
+
+### Production implementation and review — 2026-10-08
+
+Implementation is on the single `feat/generic-markdown-workspace` branch based on production `3332036`. The archive branch remains unchanged at `e8f012b`; `477054d` was inspected with `git show` and no prototype server, entry point, switcher, state inspector, or losing layout variant was promoted.
+
+- `2f4eb14`: approved spec/prompt, glossary, A verdict, and ADR transition.
+- `2404f9e`: production collection/metadata/relationship parsing, A modules, generic Board/maps, optional issue tools, documentation, and integration fixtures.
+- `e0f1cfa`: review fixes for direct-folder membership, Chakra controls/layout, URL folder expansion, typed map settings, and additional production write/package coverage.
+- `20da55e`: Board value picker and views distinguish missing properties from authored labels. Authored literals are JSON-quoted in the picker, so no authored value can collide with the special missing, empty, invalid, or conflicting labels, including the exact literal `No value (missing property)`.
+
+The generic index discovers `.md`/`.markdown` recursively, retains unavailable file identities and directory warnings, and does not use issue classification. Raw property occurrences remain visible; Board identities separate missing, empty, authored labels, conflicts, and physical folders. Links/reference links, selected explicit dependency targets, global/local maps, reciprocal directions, independent local branches, safe reading/fragments/backlinks, live invalidation, and the existing authenticated targeted write/draft/recovery contracts are implemented.
+
+#### Standards review
+
+Initial findings: two documented-rule conflicts (custom control styling and transient folder expansion), one heuristic (stringly typed map settings), plus contradictory contributor text. `e0f1cfa` resolves all of them with Chakra controls/layout, URL-backed expansion, centralized finite settings, and corrected docs. The read-only follow-up found no remaining concrete Standards conflict.
+
+#### Spec review
+
+Initial finding: a directly selected folder containing a `docs/` child could omit top-level Markdown because the issue classifier also called it a repository. `e0f1cfa` makes generic discovery independent and adds API/production-App coverage. The read-only follow-up found no new product defects and confirmed measured-node retention remains intact.
+
+A later Spec finding, an exact authored-label collision with the missing-property label, was resolved in `20da55e` and re-reviewed with no remaining concrete product findings.
+
+Review summary: Standards had three findings, all resolved; Spec had two findings, both resolved. Neither review substitutes for browser validation.
+
+#### Checks established so far
+
+- Regular typechecks, builds, and focused disk/API/production-App integration checks passed.
+- Final full `pnpm check` after the last code change (`20da55e`): 138 tests, 138 pass, no failures or skips; typecheck and production build pass (about 164 seconds). An earlier full run passed 135 tests before the review fixes.
+- The real React Flow integration covers A → B / C → B with A selected, C hover, controlled dimensions, stationary positions, selection, focus strokes, live refresh, all global presentations, and local direction/branch behavior. A mutation check proved that removing dimension retention makes the regression fail; the source was restored. No hover delays or diagnostic suppression were used. The test loads the real React Flow stylesheet with a deterministic jsdom geometry adapter.
+- A final `pnpm pack` after the last code change succeeded (prepack typecheck and build passed). A locally packed app installed outside the checkout and passed its integration check, including runtime parser availability, assets, writes, events, boundaries, and shutdown. Offline installation initially lacked one mature transitive package; an online local-tarball installation populated the store, and offline verification then passed. The 2880-minute pnpm maturity policy was retained; package publication dates were verified. No release version changed.
+- The expressly authorized read-only invest smoke compared filesystem/API discovery dynamically and opened a readable document. No private contents, fixtures, or fixed file count were committed or printed.
+
+#### Packed production preview
+
+A stale earlier preview (started before the reader body schema change) was stopped. The final packed tarball was reinstalled outside the checkout and a fresh production CLI was started against the disposable three-file fixture (`A.md` links `B.md#details`, `C.md` links `B.md`, `B.md` has a Details heading). Server-side checks on that preview: the root page and both built assets return 200, `/api/documents` returns three documents and the two expected link edges with no warnings, `/api/document` returns the reader `body`, and `/api/events` opens. Preview URL at handoff: `http://127.0.0.1:62686` (loopback only; it lasts only as long as that local process runs). These are API and asset checks, not browser acceptance.
+
+#### Required browser validation still pending
+
+Brave rejected the disposable three-file production fixture URL with `ERR_BLOCKED_BY_CLIENT`. Automatic approval review then rejected opening that same localhost app through the in-app browser, treating it as bypassing the client block. An explicit approval question is pending; no alternative UI route was used. Therefore physical card center/border checks, light/dark and narrow-screen browser journeys, and real-browser editing are **not yet verified**. Automated integration and a runnable package do not close this acceptance requirement. A is the approved verdict; final issue acceptance remains pending these browser checks.
