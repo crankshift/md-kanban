@@ -147,6 +147,21 @@ test('production issue tools create, edit, comment and change supported status w
   await ui.until(() => reader(ui)?.textContent.includes('A preserved production comment.'), 'reader reflects the saved document');
 });
 
+test('Markdown previews keep relative links inert so a draft cannot be navigated away', async (t) => {
+  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n' }, true);
+  await ui.until(() => button(ui, 'Read issues/01-existing.md'), 'collection');
+  await ui.click(button(ui, 'Read issues/01-existing.md'));
+  await ui.until(() => button(ui, 'Issue tools'), 'issue capability');
+  await ui.click(button(ui, 'Issue tools'));
+  await ui.until(() => field(ui, 'Markdown body'), 'issue editor');
+  await ui.change(field(ui, 'Markdown body'), 'See [the spec](../spec.md) and [site](https://example.com).');
+  await ui.click(button(ui, 'Preview'));
+  const preview = ui.document.querySelector('[aria-label="Body preview"]');
+  assert.equal(preview.querySelectorAll('a[href="../spec.md"]').length, 0);
+  assert.equal(preview.querySelector('span[title="Document links open from the saved Markdown."]').textContent, 'the spec');
+  assert.equal(preview.querySelector('a[href="https://example.com"]').getAttribute('target'), '_blank');
+});
+
 test('React Flow keeps measured A/B/C cards visible and stationary while C is hovered with A selected, including live refresh', async (t) => {
   const ui = await renderBoard(t, {
     'A.md': '# A\n\n[B](B.md)', 'B.md': '# B', 'C.md': '# C\n\n[B](B.md)',
