@@ -1,9 +1,10 @@
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
-import { basename, join, posix } from 'node:path';
+import { basename, join, posix, sep } from 'node:path';
 import { issueWriteSchema } from './board.js';
-import { type DocumentLink, type DocumentList, type OpenedDocument, type SupportingDocument } from './document-types.js';
-import { classifyRoot, containers, discoverIssues } from './discovery.js';
+import { documentMetadata, markdownLinks } from './markdown-metadata.js';
+import { type DocumentRelation, type DocumentLink, type DocumentList, type OpenedDocument, type SupportingDocument } from './document-types.js';
+import { discoverIssues } from './discovery.js';
 
 export class DocumentError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }
@@ -14,7 +15,8 @@ const markdown = /\.(?:md|markdown)$/i;
 const specification = /^(?:spec|specification)\.md$/i;
 const map = /^map\.md$/i;
 // Dependency and repository-internal folders are never browsable, even through a link.
-const denied = new Set(['.git', 'node_modules', '.pnpm-store']);
+export const documentExcluded = new Set(['.git', 'node_modules', '.pnpm-store', 'vendor', 'dist', 'build', 'coverage', '.cache', '.next', '.agents', '.codex']);
+const denied = documentExcluded;
 const unavailable = (reason: string): DocumentLink => ({ status: 'unavailable', reason });
 
 /**
@@ -46,8 +48,18 @@ async function readFileSafely(absolute: string): Promise<Buffer> {
     if (!opened.isFile() || checked.isSymbolicLink() || opened.dev !== checked.dev || opened.ino !== checked.ino) {
       throw new DocumentError(403, 'The document changed while it was being opened. Try again.');
     }
-    if (opened.size > maxBytes) throw new DocumentError(413, 'This document is too large to display.');
-    return await handle.readFile();
+    if (opened.size > maxBytes) throw new DocumentError(413, 'This document exceeds the 2 MiB preview limit.');
+    // Bound the read as well as the stat: a concurrently growing file cannot bypass the cap.
+    const buffer = Buffer.allocUnsafe(maxBytes + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null);
+      if (!bytesRead) break;
+      length += bytesRead;
+    }
+    if (length > maxBytes) throw new DocumentError(413, 'This document exceeds the 2 MiB preview limit.');
+    if (await realpath(absolute) !== absolute) throw new DocumentError(403, 'The document path changed. Reload and try again.');
+    return buffer.subarray(0, length);
   } finally { await handle.close(); }
 }
 
@@ -63,53 +75,88 @@ export function documentTitle(content: string, fallback: string): string {
   return fallback;
 }
 
-async function describe(root: string, path: string, kind: SupportingDocument['kind'], feature: string | null, location: string | null): Promise<SupportingDocument | null> {
-  try {
-    const content = (await readFileSafely(await safeFile(root, path))).toString('utf8');
-    return { path, title: documentTitle(content, basename(path).replace(/\.[^.]+$/, '')), kind, feature, location };
-  } catch { return null; }
+function kindOf(path: string): SupportingDocument['kind'] {
+  return posix.dirname(path).split('/').includes('adr') ? 'adr' : specification.test(basename(path)) ? 'specification' : map.test(basename(path)) ? 'map' : 'document';
 }
 
-/**
- * Specifications and maps beside recognized issue containers, plus `docs/adr` for a repository-root launch.
- * A direct issue-folder launch exposes only documents inside that folder.
- */
+async function describe(root: string, path: string): Promise<SupportingDocument> {
+  let content: string | null = null;
+  const problems: string[] = [];
+  try { content = (await readFileSafely(await safeFile(root, path))).toString('utf8'); }
+  catch (error) { problems.push(error instanceof DocumentError ? error.message : 'Cannot read this Markdown file. Check access and reload.'); }
+  const metadata = documentMetadata(content ?? '');
+  return { path, name: basename(path), folder: posix.dirname(path), kind: kindOf(path),
+    title: documentTitle(metadata.body, basename(path).replace(/\.[^.]+$/, '')),
+    feature: null, location: null, content, properties: metadata.properties, diagnostics: [...problems, ...metadata.diagnostics] };
+}
+
+/** Every Markdown descendant belongs, independent of the optional issue write adapter. */
 export async function discoverDocuments(folder: string): Promise<DocumentList> {
   const root = await realpath(folder);
-  const board = await discoverIssues(root);
-  const found = new Map<string, SupportingDocument>();
-  const scanned = new Set<string>();
-  const scan = async (directory: string, feature: string, location: string): Promise<void> => {
-    if (scanned.has(directory)) return;
-    scanned.add(directory);
-    let names: string[];
-    try { names = (await readdir(directory === '.' ? root : join(root, directory), { withFileTypes: true })).filter((entry) => entry.isFile()).map((entry) => entry.name).sort(); }
-    catch { return; }
-    for (const name of names) {
-      const kind = specification.test(name) ? 'specification' : map.test(name) ? 'map' : null;
-      if (!kind) continue;
-      const path = directory === '.' ? name : `${directory}/${name}`;
-      const document = await describe(root, path, kind, feature, location);
-      if (document) found.set(path, document);
-    }
-  };
-  for (const issue of board.issues) {
-    // A container selected directly is '.', so its own folder is the boundary and no parent is read.
-    const featureDirectory = containers.has(basename(issue.container)) ? posix.dirname(issue.container) : issue.container;
-    await scan(featureDirectory, issue.feature, issue.location);
-  }
-  if ((await classifyRoot(root)).repository) {
-    let names: string[] = [];
-    try { names = (await readdir(join(root, 'docs', 'adr'), { withFileTypes: true })).filter((entry) => entry.isFile() && markdown.test(entry.name)).map((entry) => entry.name).sort(); }
-    catch { /* No ADR folder. */ }
-    for (const name of names) {
-      const path = `docs/adr/${name}`;
-      const document = await describe(root, path, 'adr', null, null);
-      if (document) found.set(path, document);
+  const documents: SupportingDocument[] = [];
+  const warnings: string[] = [];
+  async function walk(directory: string) {
+    let entries;
+    try {
+      // Check ancestors again on recursion, including a directory atomically replaced by a symlink.
+      let current = root;
+      for (const part of directory.split('/').filter(Boolean)) {
+        current = join(current, part);
+        if ((await lstat(current)).isSymbolicLink()) throw new Error('Symbolic directory');
+      }
+      if (await realpath(current) !== current) throw new Error('Directory changed');
+      entries = await readdir(current, { withFileTypes: true });
+    } catch { warnings.push(`Cannot read directory: ${directory || '.'}. Check access and reload.`); return; }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (denied.has(entry.name) || entry.name.startsWith('.mdboard-')) continue;
+      const path = directory ? `${directory}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(path);
+      else if (markdown.test(entry.name)) documents.push(await describe(root, path));
     }
   }
-  const order = { specification: 0, map: 1, adr: 2 };
-  return { documents: [...found.values()].sort((a, b) => order[a.kind] - order[b.kind] || a.path.localeCompare(b.path)) };
+  const entries = await readdir(root, { withFileTypes: true });
+  const documentFolder = root.split(sep).some((part) => part === 'docs' || part === '.scratch');
+  const hasFolder = (name: string) => entries.some((entry) => entry.name === name && entry.isDirectory());
+  const repository = !['docs', '.scratch'].includes(basename(root)) &&
+    (entries.some((entry) => entry.name === '.git') || (!documentFolder && hasFolder('docs') && hasFolder('.scratch')));
+  if (repository) {
+    for (const name of ['docs', '.scratch', 'issues', 'tickets']) {
+      const entry = entries.find((entry) => entry.name === name);
+      if (entry?.isDirectory()) await walk(name);
+      else if (entry?.isSymbolicLink()) warnings.push(`Cannot read directory: ${name}. Symbolic links are not followed.`);
+    }
+  } else await walk('');
+  documents.sort((a, b) => a.path.localeCompare(b.path));
+  const edges = new Map<string, DocumentRelation>();
+  const indexed = new Set(documents.map((document) => document.path));
+  for (const document of documents) {
+    const add = (href: string, kind: DocumentRelation['kind'], property?: string) => {
+      const resolved = relativeDocumentTarget(document.path, href);
+      if (resolved.status === 'unavailable') {
+        // External links and same-file fragments do not claim a Markdown relationship.
+        if (!href.startsWith('#') && !/^[a-z][a-z0-9+.-]*:/i.test(href)) document.diagnostics.push(`${kind === 'link' ? 'Link' : 'Dependency'} “${href}”: ${resolved.reason}`);
+        return;
+      }
+      if (!indexed.has(resolved.path)) {
+        document.diagnostics.push(`${kind === 'link' ? 'Link' : 'Dependency'} “${href}”: target is outside the indexed collection or unavailable. It can be followed in the reader if allowed.`);
+        return;
+      }
+      if (resolved.path === document.path) return;
+      const edge = { source: document.path, target: resolved.path, kind, ...(property ? { property } : {}) };
+      edges.set(JSON.stringify([kind, property, document.path, resolved.path]), edge);
+    };
+    const metadata = documentMetadata(document.content ?? '');
+    for (const href of markdownLinks(metadata.body)) add(href, 'link');
+    for (const property of document.properties.filter((property) => property.valid)) {
+      for (const value of property.values) {
+        const links = markdownLinks(value);
+        // Numeric/prose values remain metadata. Only explicit Markdown file targets form edges.
+        const paths = value.split(/[,\n]/).map((part) => part.trim()).filter((part) => /\.(md|markdown)(?:[?#].*)?$/i.test(part));
+        for (const href of [...links, ...paths]) add(href, 'dependency', property.key);
+      }
+    }
+  }
+  return { folder: root, documents, edges: [...edges.values()], warnings };
 }
 
 export async function readDocument(folder: string, path: string): Promise<OpenedDocument> {
@@ -119,21 +166,15 @@ export async function readDocument(folder: string, path: string): Promise<Opened
   const root = await realpath(folder);
   const bytes = await readFileSafely(await safeFile(root, path));
   const content = bytes.toString('utf8');
-  const known = (await discoverDocuments(root)).documents.find((document) => document.path === path);
-  return {
-    path, title: known?.title ?? documentTitle(content, basename(path).replace(/\.[^.]+$/, '')),
-    kind: known?.kind ?? 'document', content,
-  };
+  const metadata = documentMetadata(content);
+  return { path, title: documentTitle(metadata.body, basename(path).replace(/\.[^.]+$/, '')), kind: kindOf(path), content, body: metadata.body,
+    properties: metadata.properties, diagnostics: metadata.diagnostics };
 }
 
-/** Resolves a relative link from its source document to an available Markdown document inside the selected folder. */
-export async function resolveDocumentLink(folder: string, from: string, href: string): Promise<DocumentLink> {
-  const source = issueWriteSchema.shape.path.safeParse(from);
-  if (!source.success) throw new DocumentError(400, 'Use the source document path relative to the selected folder.');
-  const root = await realpath(folder);
+/** Pure path resolution shared by indexing and reader navigation. Access is checked separately. */
+export function relativeDocumentTarget(from: string, href: string): DocumentLink {
   const hash = href.indexOf('#');
   const target = (hash < 0 ? href : href.slice(0, hash)).split('?')[0] ?? '';
-  // The fragment stays percent-encoded; the renderer decodes it once when matching headings.
   const fragment = hash < 0 || hash === href.length - 1 ? null : href.slice(hash + 1);
   let decoded: string;
   try { decoded = decodeURIComponent(target); }
@@ -142,10 +183,19 @@ export async function resolveDocumentLink(folder: string, from: string, href: st
   if (/[\x00-\x1f\\]/.test(decoded) || /^[a-z][a-z0-9+.-]*:/i.test(decoded) || decoded.startsWith('//')) return unavailable('Only relative links to Markdown documents can be opened.');
   if (decoded.startsWith('/')) return unavailable('Absolute links are not resolved. Use a path relative to the linking document.');
   const resolved = posix.normalize(posix.join(posix.dirname(from), decoded));
-  if (resolved === '..' || resolved.startsWith('../') || posix.isAbsolute(resolved)) {
-    return unavailable('The link points outside the selected folder, so it was not read.');
-  }
+  if (resolved === '..' || resolved.startsWith('../') || posix.isAbsolute(resolved)) return unavailable('The link points outside the selected folder, so it was not read.');
   if (decoded.endsWith('/') || !markdown.test(resolved)) return unavailable('Only Markdown documents inside the selected folder can be opened.');
+  return { status: 'available', path: resolved, fragment, issue: false };
+}
+
+/** Resolves a relative link from its source document to an available Markdown document inside the selected folder. */
+export async function resolveDocumentLink(folder: string, from: string, href: string): Promise<DocumentLink> {
+  const source = issueWriteSchema.shape.path.safeParse(from);
+  if (!source.success) throw new DocumentError(400, 'Use the source document path relative to the selected folder.');
+  const root = await realpath(folder);
+  const target = relativeDocumentTarget(from, href);
+  if (target.status === 'unavailable') return target;
+  const { path: resolved, fragment } = target;
   try { await safeFile(root, resolved); }
   catch (error) { return unavailable(error instanceof DocumentError ? error.message : 'The linked document cannot be read.'); }
   const board = await discoverIssues(root);

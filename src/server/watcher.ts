@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { discoverIssues, excluded } from './discovery.js';
+import { discoverIssues } from './discovery.js';
+import { documentExcluded } from './documents.js';
 
 export type BoardWatcher = {
   /** Increases each time the discovered board differs from the previously published one. */
@@ -21,13 +22,16 @@ async function markdownVersions(folder: string): Promise<unknown[]> {
   const versions: unknown[] = [];
   async function walk(directory: string) {
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.isSymbolicLink() || entry.name.startsWith('.mdboard-') || (excluded.has(entry.name) && entry.name !== 'adr')) continue;
+      if (entry.name.startsWith('.mdboard-') || documentExcluded.has(entry.name)) continue;
       const path = join(directory, entry.name);
       try {
-        if (entry.isDirectory()) await walk(path);
-        else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+        if (entry.isDirectory()) {
           const stat = await lstat(path);
-          if (!stat.isSymbolicLink()) versions.push([path, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
+          versions.push([path, stat.ino, stat.mode]);
+          if (!stat.isSymbolicLink()) await walk(path);
+        } else if (/\.(md|markdown)$/i.test(entry.name)) {
+          const stat = await lstat(path);
+          versions.push([path, stat.ino, stat.size, stat.mode, stat.mtimeMs, stat.ctimeMs]);
         }
       } catch { versions.push([path, 'unavailable']); }
     }
@@ -93,7 +97,7 @@ export async function createBoardWatcher(folder: string, options: BoardWatcherOp
   };
   // Lock and temporary files from our own writes never affect discovery.
   const relevant = (filename: string | null): boolean => filename === null ||
-    (!basename(filename).startsWith('.mdboard-') && !filename.split(sep).some((part) => (excluded.has(part) && part !== 'adr')));
+    (!basename(filename).startsWith('.mdboard-') && !filename.split(sep).some((part) => documentExcluded.has(part)));
 
   if (native) {
     try {

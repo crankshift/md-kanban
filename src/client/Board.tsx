@@ -193,11 +193,13 @@ export function Board({
   sessionToken,
   folder,
   sessionProblem = false,
+  embedded = false,
 }: {
   data: BoardData;
   sessionToken?: string | undefined;
   folder?: string | undefined;
   sessionProblem?: boolean;
+  embedded?: boolean;
 }) {
   const client = useQueryClient();
   const board = useDiskQuery(boardKey, '/api/issues', boardSchema, initialData);
@@ -217,6 +219,8 @@ export function Board({
       document: parseAsString,
       fragment: parseAsString,
       create: parseAsString,
+      file: parseAsString,
+      anchor: parseAsString,
     },
     { history: 'push' },
   );
@@ -272,7 +276,7 @@ export function Board({
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       dirty.current &&
-      ['issue', 'document', 'create'].some(
+      ['issue', 'document', 'create', 'file'].some(
         (key) =>
           new URLSearchParams(currentLocation.search).get(key) !==
           new URLSearchParams(nextLocation.search).get(key),
@@ -302,7 +306,7 @@ export function Board({
     ).entries(),
   ];
   useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
+    if (embedded || typeof EventSource === 'undefined') return;
     const source = new EventSource('/api/events');
     const sync = () => {
       setLive('live');
@@ -312,7 +316,7 @@ export function Board({
     source.addEventListener('change', sync);
     source.addEventListener('error', () => setLive('offline'));
     return () => source.close();
-  }, [client]);
+  }, [client, embedded]);
   type Write = {
     base?: Issue;
     endpoint: 'status' | 'edit' | 'comment' | 'create' | 'repair';
@@ -508,6 +512,7 @@ export function Board({
       issue: saved.id,
       create: null,
       document: null,
+      ...(embedded ? { file: saved.id, anchor: null } : {}),
     });
   }
   function selectIssue(id: string) {
@@ -523,6 +528,7 @@ export function Board({
       fragment: null,
       create: null,
       ...(issue.workflow ? { workflow: issue.workflow } : {}),
+      ...(embedded ? { file: id, anchor: null } : {}),
     });
     setLinkNotice(null);
   }
@@ -541,6 +547,14 @@ export function Board({
         duration: Infinity,
         closable: true,
       });
+      return;
+    }
+    if (embedded) {
+      const params = new URLSearchParams(window.location.search);
+      params.set('file', link.path);
+      params.delete('issue');
+      if (link.fragment) params.set('anchor', link.fragment); else params.delete('anchor');
+      void navigate({ search: params.toString() });
       return;
     }
     if (link.issue && data.issues.some((issue) => issue.id === link.path)) selectIssue(link.path);
@@ -568,6 +582,94 @@ export function Board({
       (filters.location || `All ${workflow === 'wayfinding' ? 'efforts' : 'features'}`));
   const detailOpen = !!(selectedId || openDocument);
   const detailTitle = selectedId ? 'Issue details' : 'Supporting document';
+  const overlays = <>
+      <Overlay open={creating} title="Create issue" onClose={() => setCreating(false)}>
+        {creating && (
+          <IssueCreator
+            visible
+            onDirty={setDirty}
+            issues={data.issues}
+            saving={!!savingId || reloading}
+            onClose={() => setCreating(false)}
+            onCreate={createNewIssue}
+            onReload={reloadForUser}
+          />
+        )}
+      </Overlay>
+      <Overlay open={detailOpen} title={detailTitle} onClose={closeDetails}>
+        {route.state?.from && (
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              void navigate(-1);
+            }}
+          >
+            {route.state.from === 'issue' ? 'Back to issue' : 'Back to previous document'}
+          </Button>
+        )}
+        <Text aria-label="Detail breadcrumb" fontFamily="mono" fontSize="xs" mb="3">
+          {[...(route.state?.trail ?? []), selectedId ?? documentPath].filter(Boolean).join(' / ')}
+        </Text>
+        {result?.error && <Text role="alert">{result.message}</Text>}
+        {openDocument && (
+          <DocumentPanel
+            target={openDocument.target}
+            notice={linkNotice}
+            onClose={closeDetails}
+            onLink={(from, href) => {
+              void followLink(from, href);
+            }}
+          />
+        )}
+        {selectedId && (
+          <IssueDetails
+            key={selectedId}
+            id={selectedId}
+            issue={
+              selected ??
+              (recovery
+                ? {
+                    ...recovery.base,
+                    content: null,
+                    revision: null,
+                    diagnostics: [
+                      'The file is unavailable. Copy your submitted changes before closing.',
+                    ],
+                  }
+                : undefined)
+            }
+            issues={data.issues}
+            onSelect={selectIssue}
+            onClose={closeDetails}
+            notice={linkNotice}
+            onLink={(from, href) => {
+              void followLink(from, href);
+            }}
+            onStatusChange={onStatusChange}
+            savingId={savingId ?? (reloading ? 'reload' : null)}
+            repair={sessionToken ? { onDirty: setDirty, onRepair: (base, fields) => write({ base, endpoint: 'repair', fields }) } : undefined}
+            editor={
+              sessionToken
+                ? {
+                    onDirty: setDirty,
+                    recovery,
+                    onDiscardRecovery: discardRecovery,
+                    onWrite: writeIssue,
+                    onReload: reloadForUser,
+                  }
+                : undefined
+            }
+          />
+        )}
+      </Overlay>
+  </>;
+  if (embedded) return <>
+    {outdated && <Text role="alert">Cannot refresh issues: outdated data. Your draft is kept.</Text>}
+    {result && <Text role={result.error ? 'alert' : 'status'}>{result.message}</Text>}
+    {failedWrites.filter((failed) => failed.request.base?.id !== selectedId).map((failed) => <Button key={failed.mutationId} onClick={() => selectIssue(failed.request.base!.id)}>Reopen editor with submitted changes</Button>)}
+    {overlays}
+  </>;
   return (
     <Navigator
       issues={data.issues}
@@ -711,86 +813,7 @@ export function Board({
           savingId={savingId ?? (reloading ? 'reload' : null)}
         />
       </Box>
-      <Overlay open={creating} title="Create issue" onClose={() => setCreating(false)}>
-        {creating && (
-          <IssueCreator
-            visible
-            onDirty={setDirty}
-            issues={data.issues}
-            saving={!!savingId || reloading}
-            onClose={() => setCreating(false)}
-            onCreate={createNewIssue}
-            onReload={reloadForUser}
-          />
-        )}
-      </Overlay>
-      <Overlay open={detailOpen} title={detailTitle} onClose={closeDetails}>
-        {route.state?.from && (
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => {
-              void navigate(-1);
-            }}
-          >
-            {route.state.from === 'issue' ? 'Back to issue' : 'Back to previous document'}
-          </Button>
-        )}
-        <Text aria-label="Detail breadcrumb" fontFamily="mono" fontSize="xs" mb="3">
-          {[...(route.state?.trail ?? []), selectedId ?? documentPath].filter(Boolean).join(' / ')}
-        </Text>
-        {result?.error && <Text role="alert">{result.message}</Text>}
-        {openDocument && (
-          <DocumentPanel
-            target={openDocument.target}
-            notice={linkNotice}
-            onClose={closeDetails}
-            onLink={(from, href) => {
-              void followLink(from, href);
-            }}
-          />
-        )}
-        {selectedId && (
-          <IssueDetails
-            key={selectedId}
-            id={selectedId}
-            issue={
-              selected ??
-              (recovery
-                ? {
-                    ...recovery.base,
-                    content: null,
-                    revision: null,
-                    diagnostics: [
-                      'The file is unavailable. Copy your submitted changes before closing.',
-                    ],
-                  }
-                : undefined)
-            }
-            issues={data.issues}
-            onSelect={selectIssue}
-            onClose={closeDetails}
-            notice={linkNotice}
-            onLink={(from, href) => {
-              void followLink(from, href);
-            }}
-            onStatusChange={onStatusChange}
-            savingId={savingId ?? (reloading ? 'reload' : null)}
-            repair={sessionToken ? { onDirty: setDirty, onRepair: (base, fields) => write({ base, endpoint: 'repair', fields }) } : undefined}
-            editor={
-              sessionToken
-                ? {
-                    onDirty: setDirty,
-                    recovery,
-                    onDiscardRecovery: discardRecovery,
-                    onWrite: writeIssue,
-                    onReload: reloadForUser,
-                  }
-                : undefined
-            }
-          />
-        )}
-      </Overlay>
+      {overlays}
     </Navigator>
   );
 }

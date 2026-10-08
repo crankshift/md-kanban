@@ -21,16 +21,18 @@ test('installed tarball serves its own frontend against a separate folder and sh
   await writeFile(join(folder, 'index.html'), 'PRIVATE_FOLDER_SENTINEL');
   await writeFile(join(folder, '01-example.md'), '# 01: Packaged issue\n\nStatus: ready-for-agent\n');
   await writeFile(join(folder, 'spec.md'), '# Packaged specification\n\nStatus: proposed\n');
+  await writeFile(join(folder, 'note.markdown'), '---\nMood: curious\n---\n# Packaged note\n\n[Spec][s]\n\n[s]: spec.md\n');
   const tarball = join(temporary, 'mdboard.tgz');
   execFileSync('pnpm', ['pack', '--out', tarball], { cwd: checkout, stdio: 'pipe' });
   const { packageManager } = JSON.parse(await readFile(join(checkout, 'package.json'), 'utf8'));
   await writeFile(join(installation, 'package.json'), JSON.stringify({ private: true, packageManager }));
-  execFileSync('pnpm', ['add', '--offline', '--ignore-scripts', tarball], { cwd: installation, stdio: 'pipe' });
+  try { execFileSync('pnpm', ['add', '--offline', '--ignore-scripts', tarball], { cwd: installation, stdio: 'pipe' }); }
+  catch (error) { throw new Error(`Packed install failed:\n${error.stdout?.toString()}\n${error.stderr?.toString()}`, { cause: error }); }
   const packageRoot = join(installation, 'node_modules/mdboard');
   const packageFiles = await readdir(packageRoot, { recursive: true });
   assert.ok(!packageFiles.some((path) => /(?:^|[/\\])prototype(?:[/\\]|$)|prototype-demo/.test(path)), 'packed package contains no prototype files');
   const packed = JSON.parse(await readFile(join(installation, 'node_modules/mdboard/package.json'), 'utf8'));
-  assert.deepEqual(Object.keys(packed.dependencies).sort(), ['open', 'zod'], 'client packages are bundled build dependencies');
+  assert.deepEqual(Object.keys(packed.dependencies).sort(), ['open', 'remark-gfm', 'remark-parse', 'unified', 'yaml', 'zod'], 'parsers ship in the runtime; browser packages are bundled build dependencies');
   const cli = process.platform === 'win32'
     ? join(installation, 'node_modules', 'mdboard', 'dist', 'server', 'cli.js')
     : join(installation, 'node_modules', '.bin', 'mdboard');
@@ -44,8 +46,10 @@ test('installed tarball serves its own frontend against a separate folder and sh
   assert.equal(board.issues[0].title, 'Packaged issue');
   assert.equal(board.issues[0].workflow, 'implementation');
   // Supporting documents stay inside the selected folder and are never cards.
-  const { documents } = await (await fetch(`${url}/api/documents`)).json();
-  assert.deepEqual(documents.map((document) => [document.kind, document.path]), [['specification', 'spec.md']]);
+  const { documents, edges } = await (await fetch(`${url}/api/documents`)).json();
+  assert.deepEqual(documents.map((document) => [document.kind, document.path]), [['document', '01-example.md'], ['document', 'note.markdown'], ['specification', 'spec.md']]);
+  assert.equal(documents.find((document) => document.path === 'note.markdown').properties[0].value, 'curious', 'installed server parses optional YAML');
+  assert.ok(edges.some((edge) => edge.kind === 'link' && edge.source === 'note.markdown' && edge.target === 'spec.md'), 'installed Markdown AST parser resolves reference links');
   assert.equal((await (await fetch(`${url}/api/document?path=spec.md`)).json()).title, 'Packaged specification');
   const escape = new URLSearchParams({ from: '01-example.md', href: '../outside.md' });
   assert.equal((await (await fetch(`${url}/api/document-link?${escape}`)).json()).status, 'unavailable');

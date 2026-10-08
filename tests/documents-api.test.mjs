@@ -40,17 +40,21 @@ async function snapshot(root, directory = '') {
   return result;
 }
 
-test('repository-root launch lists specifications, maps and ADRs but never turns them into issues', async (t) => {
+test('repository-root collection lists all Markdown while optional issue capabilities remain independently classified', async (t) => {
   const app = await serve(t);
   const { body } = await app.get('/api/documents');
   assert.deepEqual(body.documents.map((document) => [document.kind, document.path, document.title]), [
+    ['document', '.scratch/alpha/implementation-workflow.md', 'Workflow'],
+    ['document', '.scratch/alpha/issues/01-start.md', '01: Start'],
+    ['document', '.scratch/alpha/issues/02-next.md', '02: Next'],
     ['specification', '.scratch/alpha/spec.md', 'Alpha specification'],
+    ['document', '.scratch/beta/issues/01-question.md', '01: Question'],
     ['map', '.scratch/beta/map.md', 'Beta map'],
     ['adr', 'docs/adr/0001-proposed.md', '0001: Proposed decision'],
     ['adr', 'docs/adr/0002-accepted.md', '0002-accepted'],
+    ['document', 'docs/guide.md', 'Guide'],
   ]);
-  assert.equal(body.documents[0].feature, 'alpha');
-  assert.equal(body.documents[2].feature, null);
+  assert.ok(body.documents.every((document) => document.feature === null), 'folder paths organize generic documents');
   const board = await (await fetch(`${app.url}/api/issues`)).json();
   assert.deepEqual(board.issues.map((issue) => issue.path).sort(), ['.scratch/alpha/issues/01-start.md', '.scratch/alpha/issues/02-next.md', '.scratch/beta/issues/01-question.md']);
   assert.equal(board.issues.filter((issue) => issue.diagnostics.length).length, 0, 'a proposed ADR is not a Needs attention entry');
@@ -134,8 +138,10 @@ test('symbolic links are never followed, including links that escape the selecte
     assert.equal(response.status, 403, path);
     assert.doesNotMatch(JSON.stringify(response.body), /Private|Do not read/);
   }
-  const listed = (await app.get('/api/documents')).body.documents.map((document) => document.path);
-  assert.ok(!listed.some((path) => path.includes('leak') || path.includes('spec-link')));
+  const listed = (await app.get('/api/documents')).body.documents;
+  assert.equal(listed.find((doc) => doc.path === 'docs/leak.md').content, null);
+  assert.equal(listed.find((doc) => doc.path === '.scratch/alpha/spec-link.md').content, null);
+  assert.ok(!listed.some((doc) => doc.path === 'docs/outside/secret.md'));
 });
 
 test('a root selected through a symlink stays the boundary', async (t) => {
@@ -153,7 +159,7 @@ test('a root selected through a symlink stays the boundary', async (t) => {
 test('a direct issue-folder launch exposes only documents within that folder', async (t) => {
   const direct = await serve(t, { ...files, '.scratch/alpha/issues/spec.md': '# Folder spec\n\nStatus: proposed\n' }, '.scratch/alpha/issues');
   const documents = (await direct.get('/api/documents')).body.documents;
-  assert.deepEqual(documents.map((document) => document.path), ['spec.md']);
+  assert.deepEqual(documents.map((document) => document.path), ['01-start.md', '02-next.md', 'spec.md']);
   assert.equal((await direct.get('/api/documents')).body.documents.some((document) => document.kind === 'adr'), false);
   assert.equal((await direct.get('/api/document-link', { from: '01-start.md', href: '../spec.md' })).body.status, 'unavailable');
   assert.equal((await direct.get('/api/document-link', { from: '01-start.md', href: '../../../docs/adr/0001-proposed.md' })).body.status, 'unavailable');
@@ -166,7 +172,7 @@ test('a direct issue-folder launch exposes only documents within that folder', a
 
 test('a feature folder launch exposes its own specification and map but not ADRs', async (t) => {
   const feature = await serve(t, files, '.scratch/alpha');
-  assert.deepEqual((await feature.get('/api/documents')).body.documents.map((document) => document.path), ['spec.md']);
+  assert.deepEqual((await feature.get('/api/documents')).body.documents.map((document) => document.path), ['implementation-workflow.md', 'issues/01-start.md', 'issues/02-next.md', 'spec.md']);
 });
 
 test('document routes are read-only GET endpoints behind the local origin checks', async (t) => {

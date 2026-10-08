@@ -1,15 +1,24 @@
-# Markdown Ticket Board
+# Markdown Workspace
 
-A board for understanding work described by issues and specifications.
+A workspace for finding, reading, and understanding Markdown documents and their relationships.
 
 ## Language
 
+**Document**:
+A Markdown file in the browsable collection, whether it records work, research, guidance, or decisions. It can be understood and found without issue metadata or relationships to other files.
+
+**Folder scope**:
+A selected folder and its descendants used to narrow the document collection. It does not require the folder to represent a feature, effort, or workflow.
+
 **Issue**:
-A unit of work or a question to resolve within a feature or effort.
+A document describing a unit of work or a question to resolve. It can carry optional properties without requiring a particular numbering or workflow convention.
 _Avoid_: Task card, ticket (when naming the underlying unit of work)
 
 **Board**:
-A view of issues grouped into columns by their status. Implementation issues and wayfinding issues have separate board views because they use different workflows.
+A view of documents grouped into columns by a chosen property or folder. Columns reflect the documents' actual values without imposing a workflow or completion sequence.
+
+**Property**:
+An optional named value recorded with a document, such as status, type, owner, or a dependency reference. Its meaning comes from the document's author rather than a mandatory workspace vocabulary.
 
 **Implementation issue**:
 A unit of work needed to implement a feature described by a specification.
@@ -38,7 +47,7 @@ Unsaved edits to an issue held in its open editor until they are saved or explic
 _Avoid_: Pending change
 
 **Dependency**:
-A relationship identifying another issue whose outcome is needed before the dependent issue can proceed.
+A declared relationship identifying another document whose outcome or content is needed by the dependent document. Its target must be explicit; the workspace does not infer its state from a status value.
 
 **Blocker**:
 An unresolved dependency known to prevent an issue from proceeding. A dependency on an implementation issue is not automatically a known blocker because triage status does not establish completion.
@@ -48,7 +57,16 @@ A description of a feature's expected behavior and scope, distinct from its impl
 _Avoid_: Ticket, issue
 
 **Supporting document**:
-A document providing context for issues or decisions, such as a specification, wayfinding map, or architectural decision record. It is read alongside issues rather than represented as an issue on the board.
+A document providing context or recording knowledge, such as a specification, wayfinding map, architectural decision record, research note, or agent guidance. It may stand alone or accompany issues without becoming a unit of work itself.
+
+**Document map**:
+A view of Markdown files and their explicit relationships, including document links and separately identified issue dependencies. A file without relationships still belongs to the browsable collection.
+
+**Document link**:
+A reference from one Markdown file to another, written as a Markdown link. It identifies related reading without asserting that either file's work blocks the other.
+
+**Backlink**:
+An incoming document link, viewed from the file it references.
 
 **Triage status**:
 A classification indicating whether an issue needs evaluation or information, is ready for an agent or human, or will not be actioned. It does not establish whether implementation is in progress or complete.

@@ -131,8 +131,10 @@ test('overlapping fields require extra confirmation before reapplying and docume
 
 test('the production App keeps an open draft through board and context refetch failures', async (t) => {
   const ui = await renderBoard(t, files, true, { application: true });
-  await ui.until(() => ui.document.querySelector(`article[aria-label^="Open #"][aria-label$=" · ${path}"]`), 'application board');
-  await ui.click(card(ui));
+  await ui.until(() => button(ui, `Read ${path}`), 'application collection');
+  await ui.click(button(ui, `Read ${path}`));
+  await ui.until(() => button(ui, 'Issue tools'), 'issue capability');
+  await ui.click(button(ui, 'Issue tools'));
   await ui.change(field(ui, 'Issue title'), 'Protected draft');
   const title = field(ui, 'Issue title');
   const transport = globalThis.fetch;

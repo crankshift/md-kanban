@@ -8,6 +8,7 @@ import { act, createElement, StrictMode } from 'react';
 import { discoverIssues } from '../dist/server/discovery.js';
 import { startServer } from '../dist/server/server.js';
 import { fixture } from './fixtures.mjs';
+import { readFile } from 'node:fs/promises';
 
 function streamingEventSource(nativeFetch, url, inAct, sources) {
   return class StreamingEventSource {
@@ -47,7 +48,7 @@ function streamingEventSource(nativeFetch, url, inAct, sources) {
  * Renders the real Board against a real server and temporary files. With `live`, the board also receives the
  * server's event stream through a fetch-based EventSource, since jsdom provides none.
  */
-export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', application = false } = {}) {
+export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', application = false, mapGeometry = false } = {}) {
   const folder = await fixture(t, files);
   const data = await discoverIssues(folder);
   const virtualConsole = new VirtualConsole();
@@ -69,6 +70,33 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
     disconnect() { this.closed = true; }
   };
   dom.window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  const measurements = [];
+  if (mapGeometry) {
+    const style = dom.window.document.createElement('style');
+    style.textContent = await readFile(new URL('../node_modules/@xyflow/react/dist/style.css', import.meta.url), 'utf8');
+    dom.window.document.head.append(style);
+    // A deterministic browser geometry adapter for the real React Flow canvas. Browser checks cover
+    // physical pointer placement; this seam verifies its controlled-node measurement contract.
+    dom.window.DOMMatrixReadOnly = class {
+      constructor() { this.m22 = 1; }
+    };
+    Object.defineProperties(dom.window.HTMLElement.prototype, {
+      offsetWidth: { get() { return this.classList.contains('react-flow__node') ? 224 : 700; }, configurable: true },
+      offsetHeight: { get() { return this.classList.contains('react-flow__node') ? 90 : 500; }, configurable: true },
+      clientWidth: { get() { return this.offsetWidth; }, configurable: true },
+      clientHeight: { get() { return this.offsetHeight; }, configurable: true },
+    });
+    dom.window.ResizeObserver = class {
+      constructor(callback) { this.callback = callback; this.targets = new Set(); }
+      observe(target) {
+        this.targets.add(target);
+        measurements.push(target);
+        queueMicrotask(() => { if (this.targets.has(target)) this.callback([{ target, contentRect: { width: target.offsetWidth, height: target.offsetHeight } }]); });
+      }
+      unobserve(target) { this.targets.delete(target); }
+      disconnect() { this.targets.clear(); }
+    };
+  }
   dom.window.document.elementFromPoint = () => dom.window.document.body;
   dom.window.document.elementsFromPoint = () => [dom.window.document.body];
   dom.window.document.getAnimations = () => [];
@@ -137,7 +165,7 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
       await act(async () => { element.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
       return names;
     },
-    folder, document: dom.window.document, sources, server, unmount,
+    folder, document: dom.window.document, sources, server, unmount, measurements,
     until: async (predicate, label, timeout = 8000) => {
       const deadline = Date.now() + timeout;
       while (!predicate()) {

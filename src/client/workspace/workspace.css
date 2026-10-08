@@ -1,0 +1,6 @@
+/* React Flow integration; application layout and controls use the shared Chakra system. */
+.markdown-workspace .react-flow__node-folder { pointer-events: none; }
+.markdown-workspace .react-flow__node-document:focus-within { opacity: 1 !important; }
+.markdown-workspace .react-flow__attribution { bottom: 36px; background: var(--chakra-colors-bg-panel); color: var(--chakra-colors-fg-muted); }
+.markdown-workspace .react-flow__controls-button { box-sizing: content-box; }
+@media (prefers-reduced-motion: reduce) { .markdown-workspace * { scroll-behavior: auto !important; transition: none !important; } }

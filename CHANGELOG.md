@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A folder-oriented Markdown workspace with recursive `.md`/`.markdown` discovery, filename/title/body search, optional YAML/leading properties, clear metadata conflicts, and a persistent safe reader with backlinks and relative-link/fragment navigation.
+- Read-only Boards grouped by any authored property or physical folder, with distinct missing, empty, literal, and conflicting values.
+- Global and one-hop local document maps with Overview, Directed, and Folders layouts, explicit dependency-property selection, reciprocal directions, focus highlighting, and stable measured geometry while hovering or refreshing.
+
+### Changed
+
+- Documents and folder scopes now organize navigation independently of numbering, issue containers, workflows, or fixed status values. Existing editing, comments, creation, repair, and status writes remain available through optional issue tools with their existing safeguards.
+- Live refresh covers all Markdown extensions, metadata, links, unavailable paths, and open readers. Unreadable/oversized files stay discoverable and directory access failures remain visible.
+- Direct folder launches retain top-level files alongside nested document folders; folder expansion and map choices restore from the URL. Workspace controls and responsive layouts use the shared Chakra theme.
+
 ## [0.1.1] - 2026-10-07
 
 ### Changed
