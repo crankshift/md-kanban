@@ -51,10 +51,11 @@ test('folder expansion restores from the URL and Chakra navigation persists expa
 });
 
 test('generic Board separates missing, literal No value, conflicts and authored Folder from physical folder', async (t) => {
-  const ui = await renderBoard(t, files, true, { application: true, address: 'http://localhost/?view=board&group=property%3Astatus' });
+  const ui = await renderBoard(t, { ...files, 'docs/D.md': '# D\n\nStatus: No value (missing property)' }, true, { application: true, address: 'http://localhost/?view=board&group=property%3Astatus' });
   await ui.until(() => field(ui, 'Document board'), 'generic board');
   const columns = () => [...ui.document.querySelectorAll('.generic-column')];
   assert.equal(columns().filter((node) => node.querySelector('h2,h3').textContent === 'No value').length, 2);
+  assert.match(ui.document.querySelector('[data-group="missing"]').textContent, /Missing property/, 'missing and literal values are visibly distinguishable');
   assert.ok(columns().some((node) => /Conflicting: sunrise · moonlight/.test(node.textContent)));
   assert.equal(ui.document.querySelector('[draggable="true"]'), null);
   await ui.change(field(ui, 'Group by'), 'Folder property');
@@ -62,9 +63,18 @@ test('generic Board separates missing, literal No value, conflicts and authored 
   await ui.change(field(ui, 'Group by'), 'Physical folder');
   assert.ok(columns().some((node) => /^docs/.test(node.textContent)));
   await ui.change(field(ui, 'Property'), 'Status');
-  await ui.change(field(ui, 'Value'), 'moonlight');
+  await ui.change(field(ui, 'Value'), '"moonlight"');
   assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
   assert.ok(button(ui, 'Read docs/A.md'));
+  await ui.change(field(ui, 'Value'), 'No value (missing property)');
+  assert.ok(button(ui, 'Read .scratch/archive/notes.markdown'));
+  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
+  await ui.change(field(ui, 'Value'), '"No value"');
+  assert.ok(button(ui, 'Read docs/B.md'));
+  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
+  await ui.change(field(ui, 'Value'), '"No value (missing property)"');
+  assert.ok(button(ui, 'Read docs/D.md'), 'an authored value matching the special label has a quoted, distinct choice');
+  assert.equal(ui.document.querySelectorAll('.generic-card').length, 1);
 });
 
 test('live generic discovery, reader and relationships update across edits, atomic replacement, rename and removal', async (t) => {

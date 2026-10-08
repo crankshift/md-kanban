@@ -18,10 +18,11 @@ export function mapSettings(params: URLSearchParams): MapSettings {
 /** Identities are separate from labels: an authored “No value” or Folder never aliases a UI choice. */
 export function propertyValue(document: Document, key: string) {
   const occurrences = document.properties.filter((entry) => entry.key === key);
-  if (!occurrences.length) return { id: 'missing', label: 'No value' };
-  if (occurrences.some((entry) => !entry.valid)) return { id: JSON.stringify(['invalid', occurrences.map((entry) => entry.raw)]), label: 'Invalid metadata' };
+  if (!occurrences.length) return { id: 'missing', label: 'No value', choiceLabel: 'No value (missing property)' };
+  if (occurrences.some((entry) => !entry.valid)) return { id: JSON.stringify(['invalid', occurrences.map((entry) => entry.raw)]), label: 'Invalid metadata', choiceLabel: 'Invalid metadata (see notices)' };
   const values = [...new Set(occurrences.map((entry) => entry.value))];
-  return { id: JSON.stringify(['values', values]), label: (values.length > 1 ? 'Conflicting: ' : '') + values.map((value) => value || '(empty)').join(' · ') };
+  return { id: JSON.stringify(['values', values]), label: (values.length > 1 ? 'Conflicting: ' : '') + values.map((value) => value || '(empty)').join(' · '),
+    choiceLabel: values.length > 1 ? `Conflicting values: ${JSON.stringify(values)}` : values[0] === '' ? 'Empty property' : JSON.stringify(values[0]) };
 }
 
 export function groupDocuments(documents: Document[], grouping: string) {

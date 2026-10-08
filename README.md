@@ -42,7 +42,7 @@ The document body starts here.
 
 Names and values belong to the author. Unknown status/type values are ordinary properties. YAML scalars retain their literal text; lists and objects display as values. Original occurrences and malformed/duplicate/conflicting metadata remain visible in the reader. Body prose and fenced examples are not leading properties.
 
-**Board** groups by any property or physical folder, using values present in the files. Missing values, empty values, authored `No value`, and conflicting composite values remain distinct. An authored `Folder` property is separate from physical folder grouping. Columns are read-only and their order implies no lifecycle or completion sequence.
+**Board** groups by any property or physical folder, using values present in the files. Missing values, empty values, authored `No value`, and conflicting composite values remain distinct. The Value picker quotes authored literal values to keep them distinct from missing, empty, invalid, or conflicting metadata. An authored `Folder` property is separate from physical folder grouping. Columns are read-only and their order implies no lifecycle or completion sequence.
 
 ## Document maps
 
