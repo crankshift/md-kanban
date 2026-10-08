@@ -31,6 +31,7 @@ test('a shared URL restores navigation and browser Back closes and returns throu
 test('browser Back asks before discarding an open draft and cancellation preserves its form', async (t) => {
   const ui = await renderBoard(t, files, true);
   await ui.click(card(ui));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'My draft');
   let confirmations = 0;
   ui.document.defaultView.confirm = () => { confirmations++; return false; };
@@ -52,6 +53,7 @@ test('a pending status appears immediately then rolls back on failure', async (t
   globalThis.fetch = (url, options) => url === '/api/status' ? gate : transport(url, options);
   t.after(() => { globalThis.fetch = transport; });
   await ui.click(card(ui));
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'wontfix');
   assert.equal(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]').value, 'wontfix');
   assert.match(await readFile(join(ui.folder, path), 'utf8'), /ready-for-agent/);
@@ -64,6 +66,7 @@ test('a pending status appears immediately then rolls back on failure', async (t
 test('a failed save after closing offers to reopen the submitted values', async (t) => {
   const ui = await renderBoard(t, files, true);
   await ui.click(card(ui));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'Submitted title');
   const transport = globalThis.fetch;
   let reject;
@@ -89,6 +92,7 @@ test('creation is optimistic without a number until confirmed and failure remove
   const ui = await renderBoard(t, files, true);
   await ui.click(button(ui, 'New issue'));
   await ui.settled();
+  await ui.until(() => field(ui, 'New issue title'), 'issue creator');
   await ui.change(field(ui, 'New issue title'), 'New item');
   const transport = globalThis.fetch;
   let reject;
@@ -110,6 +114,7 @@ test('creation is optimistic without a number until confirmed and failure remove
 test('overlapping fields require extra confirmation before reapplying and documents refresh live', async (t) => {
   const ui = await renderBoard(t, files, true, { live: true });
   await ui.click(card(ui));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'My title');
   await writeFile(join(ui.folder, path), files[path].replace('First', 'Disk title'));
   await ui.until(() => /Changed on disk: title/.test(ui.document.body.textContent), 'field conflict');
@@ -135,6 +140,7 @@ test('the production App keeps an open draft through board and context refetch f
   await ui.click(button(ui, `Read ${path}`));
   await ui.until(() => button(ui, 'Issue tools'), 'issue capability');
   await ui.click(button(ui, 'Issue tools'));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'Protected draft');
   const title = field(ui, 'Issue title');
   const transport = globalThis.fetch;

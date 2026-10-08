@@ -101,6 +101,7 @@ test('optional issue tools preserve a dirty draft during refresh and reject navi
   await ui.click(button(ui, 'Read .scratch/work/issues/01-supported.md'));
   await ui.until(() => button(ui, 'Issue tools'), 'optional tools');
   await ui.click(button(ui, 'Issue tools'));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'Protected draft');
   await writeFile(join(ui.folder, '.scratch/work/issues/01-supported.md'), files['.scratch/work/issues/01-supported.md'].replace('Original body.', 'External body.'));
   await ui.until(() => /changed outside|Changed on disk/.test(ui.document.body.textContent), 'stale notice');
@@ -123,6 +124,7 @@ test('production issue tools create, edit, comment and change supported status w
   await ui.until(() => reader(ui)?.textContent.includes('Ordinary'), 'ordinary reader');
   assert.equal(button(ui, 'Issue tools'), undefined);
   await ui.click(button(ui, 'New issue'));
+  await ui.until(() => field(ui, 'New issue title'), 'issue creator');
   await ui.change(field(ui, 'New issue title'), 'Production creation');
   await ui.change(field(ui, 'New issue body'), 'Original created body.');
   await ui.click(button(ui, 'Create issue'));

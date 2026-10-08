@@ -10,6 +10,7 @@ test('candidate fix picker makes no write until Apply and joins the server-confi
   const ui = await renderBoard(t, { '01-candidate.md': original }, true);
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Candidate'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Set status"]'), 'fix panel');
   const picker = ui.document.querySelector('[aria-label="Set status"]');
   assert.ok(picker);
   assert.deepEqual(await ui.options(picker), ['needs-triage · Implementation', 'needs-info · Implementation', 'ready-for-agent · Implementation', 'ready-for-human · Implementation', 'wontfix · Implementation', 'open · Wayfinding', 'claimed · Wayfinding', 'resolved · Wayfinding']);
@@ -25,6 +26,7 @@ test('Remove Type fixes a Type conflict without rewriting the body', async (t) =
   const ui = await renderBoard(t, { '01-candidate.md': original }, true);
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Candidate'));
+  await ui.until(() => ui.document.querySelector('input[type="checkbox"]'), 'fix panel');
   await ui.click(ui.document.querySelector('input[type="checkbox"]'));
   assert.equal(await readFile(join(ui.folder, '01-candidate.md'), 'utf8'), original);
   await ui.click(button(ui, 'Apply fixes'));
@@ -37,6 +39,7 @@ test('Type picker replaces an unknown wayfinding type', async (t) => {
   const ui = await renderBoard(t, { '02-other.md': original }, true);
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Other'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Set type"]'), 'fix panel');
   await ui.change(ui.document.querySelector('[aria-label="Set type"]'), 'task');
   assert.equal(await readFile(join(ui.folder, '02-other.md'), 'utf8'), original);
   await ui.click(button(ui, 'Apply fixes'));
@@ -49,6 +52,7 @@ test('whole-file editor protects drafts on cancel and dialog close, and shows re
   const ui = await renderBoard(t, { '01-candidate.md': original }, true);
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Candidate'));
+  await ui.until(() => button(ui, 'Edit Markdown'), 'fix panel');
   await ui.click(button(ui, 'Edit Markdown'));
   const content = '# 01: Candidate\nStatus: open\nType: odd\n';
   await ui.change(ui.document.querySelector('[aria-label="File Markdown"]'), content);
@@ -76,6 +80,7 @@ test('repair preview is optimistic, keeps server diagnostics until confirmation,
   const ui = await renderBoard(t, { '01-candidate.md': original }, true);
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Candidate'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Set status"]'), 'fix panel');
   await ui.change(ui.document.querySelector('[aria-label="Set status"]'), 'open · Wayfinding');
   const transport = globalThis.fetch;
   let release;

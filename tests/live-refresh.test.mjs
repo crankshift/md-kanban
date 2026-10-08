@@ -33,6 +33,7 @@ test('external edits, creations, renames and deletions refresh untouched issues 
   const feature = () => [...ui.document.querySelectorAll('[aria-label="Search and filters"] input[role="combobox"]')][1];
   await ui.change(feature(), 'alpha · .scratch');
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'My unsaved title');
   assert.deepEqual(ui.cards('needs-info'), ['Alpha second']);
 
@@ -60,6 +61,7 @@ test('external edits, creations, renames and deletions refresh untouched issues 
 test('an untouched open issue follows its file without a conflict', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   const title = ui.document.querySelector('[aria-label="Issue title"]');
   await ui.write(FIRST, files[FIRST].replace('Alpha first', 'Alpha first, revised').replace('Original notes.', 'Agent notes.'));
   await ui.until(() => ui.text('[aria-label="Issue details"] h2').includes('revised'), 'the details to refresh');
@@ -73,6 +75,7 @@ test('an untouched open issue follows its file without a conflict', async (t) =>
 test('a dirty draft survives an external change to its issue, stale saves are rejected, and recovery stays explicit', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   const title = ui.document.querySelector('[aria-label="Issue title"]');
   await ui.change(title, 'Draft title');
   await ui.change(ui.document.querySelector('[aria-label="New comment"]'), 'Draft comment');
@@ -107,6 +110,7 @@ test('a dirty draft survives an external change to its issue, stale saves are re
 test('app saves are not duplicated or reverted by their own file-change notifications', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Saved title');
   await ui.click(ui.button('Save issue'));
   await ui.settled();
@@ -138,6 +142,7 @@ test('app saves are not duplicated or reverted by their own file-change notifica
 test('a removed issue keeps its draft recoverable while the details stay open', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Recover me');
   await rm(join(ui.folder, FIRST));
   await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft"]'), 'the removed-issue panel');
@@ -161,6 +166,7 @@ test('a removed issue keeps its draft recoverable while the details stay open', 
 test('a draft returns to the reappearing file, which is a conflict rather than a silent rebase', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Back again');
   await rm(join(ui.folder, FIRST));
   await ui.until(() => ui.document.querySelector('[aria-label="Recoverable draft"]'), 'removal');
@@ -176,6 +182,7 @@ test('a draft returns to the reappearing file, which is a conflict rather than a
 test('files becoming malformed move to Needs attention while the draft stays recoverable', async (t) => {
   const ui = await liveBoard(t);
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue title"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Issue title"]'), 'Mid-edit');
   await ui.write(FIRST, '# 01: Alpha first\n\nStatus: finished\n');
   await ui.until(() => !ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-first.md"]'), 'unrecognized issue leaves the board');
@@ -193,7 +200,7 @@ test('files becoming malformed move to Needs attention while the draft stays rec
 test('creation drafts are kept when the folder changes, while an untouched form follows it', async (t) => {
   const ui = await liveBoard(t);
   await ui.click(ui.button('New issue'));
-  await ui.until(() => ui.document.querySelector('[aria-label="New issue container"]').value.includes('alpha'), 'creation folders');
+  await ui.until(() => ui.document.querySelector('[aria-label="New issue container"]')?.value.includes('alpha'), 'creation folders');
   const container = ui.document.querySelector('[aria-label="New issue container"]');
   assert.match(container.value, /alpha/);
   await ui.write('.scratch/alpha/issues/03-agent.md', '# 03: Agent made\n\nStatus: needs-triage\n');
@@ -235,6 +242,7 @@ test('a refresh waits for an in-flight save instead of racing its confirmation',
   globalThis.fetch = (path, options) => String(path).includes('/api/status') ? gate.then(() => transport(path, options)) : transport(path, options);
   t.after(() => { globalThis.fetch = transport; });
   await ui.open(FIRST);
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'issue editor');
   const select = ui.document.querySelector('[aria-label=\"Issue metadata\"] input[role=\"combobox\"]');
   await ui.change(select, 'needs-info');
   assert.match(ui.document.body.textContent, /Saving issue/);

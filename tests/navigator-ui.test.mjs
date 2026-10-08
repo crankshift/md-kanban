@@ -86,6 +86,10 @@ test('command palette opens issues and documents with keyboard and attention sta
   await ui.click(button(ui, 'Close Supporting document'));
   await ui.click(button(ui, 'Needs attention'));
   await ui.click(button(ui, 'Check metadata'));
+  await ui.until(
+    () => ui.document.querySelector('[aria-label="Issue details"]')?.textContent.includes('Original diagnostic document'),
+    'issue details',
+  );
   assert.match(
     ui.document.querySelector('[aria-label="Issue details"]').textContent,
     /Original diagnostic document/,
@@ -110,6 +114,7 @@ test('successful creation opens saved details without asking to discard the alre
     return false;
   };
   await ui.click(button(ui, 'New issue'));
+  await ui.until(() => ui.document.querySelector('[aria-label="New issue title"]'), 'issue creator');
   await ui.change(ui.document.querySelector('[aria-label="New issue title"]'), 'Saved creation');
   await ui.click(button(ui, 'Create issue'));
   await ui.settled();

@@ -151,6 +151,7 @@ test('card whitespace opens details on click and Enter rather than picking up th
   const ui = await renderBoard(t, files, true);
   layout(ui);
   await ui.click(card(ui).querySelector('[aria-label="Issue number"]'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Issue details"]'), 'issue details');
   assert.ok(ui.document.querySelector('[aria-label="Issue details"]'));
   await ui.click(ui.document.querySelector('[aria-label="Close Issue details"]'));
   card(ui).focus();

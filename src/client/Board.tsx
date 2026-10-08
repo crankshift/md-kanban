@@ -3,7 +3,7 @@ import { DragCard, StatusDragBoard, StatusDropColumn } from './DragBoard';
 import { Navigator, Overlay, featureKey } from './Navigator';
 import { Picker } from './Picker';
 import { toaster } from './components/ui/toaster';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useMutationState, useQueryClient } from '@tanstack/react-query';
 import { useBlocker, useLocation, useNavigate } from 'react-router';
 import { parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
@@ -28,10 +28,15 @@ import {
   useSupportingDocuments,
   type DocumentTarget,
 } from './Documents';
-import { IssueCreator } from './IssueCreator';
-import { IssueDetails } from './IssueDetails';
 import type { StatusControls } from './StatusControl';
 import type { IssueEditorActions, IssueDraft } from './IssueEditor';
+
+const IssueCreator = lazy(() =>
+  import('./IssueCreator').then((module) => ({ default: module.IssueCreator })),
+);
+const IssueDetails = lazy(() =>
+  import('./IssueDetails').then((module) => ({ default: module.IssueDetails })),
+);
 
 type Filters = { query: string; location: string; feature: string };
 const emptyFilters: Filters = { query: '', location: '', feature: '' };
@@ -585,15 +590,17 @@ export function Board({
   const overlays = <>
       <Overlay open={creating} title="Create issue" onClose={() => setCreating(false)}>
         {creating && (
-          <IssueCreator
-            visible
-            onDirty={setDirty}
-            issues={data.issues}
-            saving={!!savingId || reloading}
-            onClose={() => setCreating(false)}
-            onCreate={createNewIssue}
-            onReload={reloadForUser}
-          />
+          <Suspense fallback={null}>
+            <IssueCreator
+              visible
+              onDirty={setDirty}
+              issues={data.issues}
+              saving={!!savingId || reloading}
+              onClose={() => setCreating(false)}
+              onCreate={createNewIssue}
+              onReload={reloadForUser}
+            />
+          </Suspense>
         )}
       </Overlay>
       <Overlay open={detailOpen} title={detailTitle} onClose={closeDetails}>
@@ -623,44 +630,46 @@ export function Board({
           />
         )}
         {selectedId && (
-          <IssueDetails
-            key={selectedId}
-            id={selectedId}
-            issue={
-              selected ??
-              (recovery
-                ? {
-                    ...recovery.base,
-                    content: null,
-                    revision: null,
-                    diagnostics: [
-                      'The file is unavailable. Copy your submitted changes before closing.',
-                    ],
-                  }
-                : undefined)
-            }
-            issues={data.issues}
-            onSelect={selectIssue}
-            onClose={closeDetails}
-            notice={linkNotice}
-            onLink={(from, href) => {
-              void followLink(from, href);
-            }}
-            onStatusChange={onStatusChange}
-            savingId={savingId ?? (reloading ? 'reload' : null)}
-            repair={sessionToken ? { onDirty: setDirty, onRepair: (base, fields) => write({ base, endpoint: 'repair', fields }) } : undefined}
-            editor={
-              sessionToken
-                ? {
-                    onDirty: setDirty,
-                    recovery,
-                    onDiscardRecovery: discardRecovery,
-                    onWrite: writeIssue,
-                    onReload: reloadForUser,
-                  }
-                : undefined
-            }
-          />
+          <Suspense fallback={null}>
+            <IssueDetails
+              key={selectedId}
+              id={selectedId}
+              issue={
+                selected ??
+                (recovery
+                  ? {
+                      ...recovery.base,
+                      content: null,
+                      revision: null,
+                      diagnostics: [
+                        'The file is unavailable. Copy your submitted changes before closing.',
+                      ],
+                    }
+                  : undefined)
+              }
+              issues={data.issues}
+              onSelect={selectIssue}
+              onClose={closeDetails}
+              notice={linkNotice}
+              onLink={(from, href) => {
+                void followLink(from, href);
+              }}
+              onStatusChange={onStatusChange}
+              savingId={savingId ?? (reloading ? 'reload' : null)}
+              repair={sessionToken ? { onDirty: setDirty, onRepair: (base, fields) => write({ base, endpoint: 'repair', fields }) } : undefined}
+              editor={
+                sessionToken
+                  ? {
+                      onDirty: setDirty,
+                      recovery,
+                      onDiscardRecovery: discardRecovery,
+                      onWrite: writeIssue,
+                      onReload: reloadForUser,
+                    }
+                  : undefined
+              }
+            />
+          </Suspense>
         )}
       </Overlay>
   </>;

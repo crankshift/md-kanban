@@ -68,6 +68,7 @@ test('issue and specification links open in-root targets, with Back, fragments a
   const ui = await setup(t);
   const before = await folderFiles(ui.folder);
   await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/01-start.md"]'));
+  await ui.until(() => ui.issuePanel()?.querySelector('[aria-label="Issue Markdown and comments"] a'), 'issue markdown links');
   let panel = ui.issuePanel();
   assert.equal(ui.link(panel, 'site').getAttribute('rel'), 'noopener noreferrer');
   assert.equal(ui.link(panel, 'site').getAttribute('target'), '_blank');
@@ -155,6 +156,7 @@ test('a document removed after listing is reported unavailable', async (t) => {
 test('Markdown previews keep relative links inert so a draft cannot be navigated away', async (t) => {
   const ui = await setup(t);
   await ui.click(ui.document.querySelector('article[aria-label^="Open #"][aria-label$=" · .scratch/alpha/issues/02-next.md"]'));
+  await ui.until(() => ui.document.querySelector('[aria-label="Markdown body"]'), 'issue editor');
   await ui.change(ui.document.querySelector('[aria-label="Markdown body"]'), 'See [the spec](../spec.md) and [site](https://example.com).');
   await ui.click(ui.button('Preview'));
   const preview = ui.document.querySelector('[aria-label="Body preview"]');

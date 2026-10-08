@@ -1,6 +1,6 @@
 import { toaster } from './components/ui/toaster';
 import { Box, Button, Heading, HStack, Stack, Text } from '@chakra-ui/react';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import {
   documentLinkSchema,
   documentListSchema,
@@ -10,7 +10,7 @@ import {
   type SupportingDocument,
 } from '../server/document-types.js';
 import { useDiskQuery, diskKey } from './ClientState';
-import { SafeMarkdown } from './SafeMarkdown';
+import { LazySafeMarkdown } from './LazySafeMarkdown';
 
 const groups = [
   ['specification', 'Specifications'],
@@ -204,13 +204,15 @@ export function DocumentPanel({
       {loaded.state === 'unavailable' && <p role="alert">Unavailable: {loaded.reason}</p>}
       {opened && (
         <section className="markdown" aria-label="Document Markdown">
-          <SafeMarkdown
-            fragment={target.fragment}
-            onLocalLink={(href) => onLink(target.path, href)}
-            onMissingFragment={setMissingFragment}
-          >
-            {opened.content}
-          </SafeMarkdown>
+          <Suspense fallback={null}>
+            <LazySafeMarkdown
+              fragment={target.fragment}
+              onLocalLink={(href) => onLink(target.path, href)}
+              onMissingFragment={setMissingFragment}
+            >
+              {opened.content}
+            </LazySafeMarkdown>
+          </Suspense>
         </section>
       )}
     </aside>

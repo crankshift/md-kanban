@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readdir, realpath, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, realpath, rm, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,16 @@ import { launch } from './helpers.mjs';
 import { connectEvents, pause } from './events.mjs';
 
 const checkout = fileURLToPath(new URL('../', import.meta.url));
+
+test('every built client chunk stays under Vite\'s 500 kB chunk-size warning limit', async () => {
+  const assetsDir = join(checkout, 'dist/client/assets');
+  const scripts = (await readdir(assetsDir)).filter((name) => name.endsWith('.js'));
+  assert.ok(scripts.length > 0, 'the client build produced JavaScript chunks');
+  const sizes = await Promise.all(
+    scripts.map(async (name) => [name, (await stat(join(assetsDir, name))).size]),
+  );
+  for (const [name, size] of sizes) assert.ok(size <= 500_000, `${name} is ${size} bytes, over the 500 kB limit`);
+});
 
 test('installed tarball serves its own frontend against a separate folder and shuts down', { timeout: 60000 }, async (t) => {
   const temporary = await realpath(await mkdtemp(join(tmpdir(), 'mdboard-package-')));
