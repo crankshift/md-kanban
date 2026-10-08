@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { Box, Tabs } from '@chakra-ui/react';
-import { SafeMarkdown } from './SafeMarkdown';
+import { LazySafeMarkdown } from './LazySafeMarkdown';
 export function MarkdownEditor({
   children,
   body,
@@ -27,7 +27,9 @@ export function MarkdownEditor({
           {children}
         </Tabs.Content>
         <Tabs.Content value="preview" h="full" overflowY="auto" p="3" aria-label={previewLabel}>
-          <SafeMarkdown>{body}</SafeMarkdown>
+          <Suspense fallback={null}>
+            <LazySafeMarkdown>{body}</LazySafeMarkdown>
+          </Suspense>
         </Tabs.Content>
       </Box>
     </Tabs.Root>

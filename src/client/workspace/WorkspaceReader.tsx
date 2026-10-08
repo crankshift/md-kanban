@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Badge, Box, Button, Heading, HStack, IconButton, Text } from '@chakra-ui/react';
 import { LuArrowLeft, LuBookOpen, LuNetwork, LuX } from 'react-icons/lu';
 import { openedDocumentSchema, type DocumentRelation } from '../../server/document-types.js';
 import { diskKey, useDiskQuery } from '../ClientState';
-import { resolveLink } from '../Documents';
-import { SafeMarkdown } from '../SafeMarkdown';
+import { resolveLink } from './links';
+import { LazySafeMarkdown } from '../LazySafeMarkdown';
 import { Properties } from './Properties';
 import type { Document } from './model';
 
@@ -44,7 +44,7 @@ export function WorkspaceReader({ path, fragment, documents, edges, canUseTools,
     {document && document.properties.length > 0 && <Properties document={document} />}
     {[...new Set([...(indexed?.diagnostics ?? []), ...(document?.diagnostics ?? [])])].map((diagnostic) => <Text role="status" color="fg.warning" fontSize="xs" my="2" key={diagnostic}>{diagnostic}</Text>)}
     {notice && <Text role="alert" fontSize="sm">{notice}</Text>}
-    {query.isError ? <Text role="alert">Unavailable: {query.error.message}</Text> : !document ? <Text role="status">Reading Markdown…</Text> : <Box maxW="850px"><Box as="section" fontSize="sm" lineHeight="1.75" overflowWrap="anywhere" aria-label="Document Markdown"><SafeMarkdown fragment={fragment} onFragment={onFragment} onMissingFragment={(fragment) => setNotice(`The section “${fragment}” was not found in this document.`)} onLocalLink={(href) => { void follow(href); }}>{document.body}</SafeMarkdown></Box>
+    {query.isError ? <Text role="alert">Unavailable: {query.error.message}</Text> : !document ? <Text role="status">Reading Markdown…</Text> : <Box maxW="850px"><Box as="section" fontSize="sm" lineHeight="1.75" overflowWrap="anywhere" aria-label="Document Markdown"><Suspense fallback={<Text role="status">Loading document…</Text>}><LazySafeMarkdown fragment={fragment} onFragment={onFragment} onMissingFragment={(fragment) => setNotice(`The section “${fragment}” was not found in this document.`)} onLocalLink={(href) => { void follow(href); }}>{document.body}</LazySafeMarkdown></Suspense></Box>
       <Box display="grid" gridTemplateColumns="repeat(auto-fit,minmax(180px,1fr))" gap="5" pt="6" mt="6" borderTopWidth="1px">{relations('Links from this file', outgoing)}{relations('Backlinks', incoming, true)}{relations('Dependencies from this file', edges.filter((edge) => edge.source === path && edge.kind === 'dependency'))}{relations('Incoming dependencies', edges.filter((edge) => edge.target === path && edge.kind === 'dependency'), true)}</Box>
     </Box>}
   </Box>;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { boardSchema } from '../server/board.js';
-import { Board } from './Board';
+import { IssueTools } from './IssueTools';
 import { boardKey, useDiskQuery } from './ClientState';
 import { Workspace } from './workspace/Workspace';
 
@@ -12,6 +12,6 @@ export function App() {
   const sessionToken = context.data?.sessionToken;
   const data = board.data;
   return <><Workspace folder={folder} issues={data} canWrite={!!sessionToken} sessionProblem={context.isError} />
-    {data && <Board data={data} sessionToken={sessionToken} folder={folder} sessionProblem={context.isError} embedded />}
+    {data && <IssueTools data={data} sessionToken={sessionToken} sessionProblem={context.isError} />}
   </>;
 }

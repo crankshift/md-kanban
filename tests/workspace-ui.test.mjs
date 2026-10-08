@@ -17,7 +17,7 @@ const reader = (ui) => ui.document.querySelector('[aria-label="Document reader"]
 const field = (ui, label) => ui.document.querySelector(`[aria-label="${label}"]`);
 
 test('A finds ordinary documents, follows relative fragments/backlinks and restores URL filters', async (t) => {
-  const ui = await renderBoard(t, files, true, { application: true });
+  const ui = await renderBoard(t, files, true, {});
   await ui.until(() => button(ui, 'Read docs/A.md'), 'Markdown collection');
   assert.equal(ui.document.querySelectorAll('.file-row').length, 5);
   await ui.click(button(ui, 'Scope .scratch/archive'));
@@ -38,7 +38,7 @@ test('A finds ordinary documents, follows relative fragments/backlinks and resto
 
 test('folder expansion restores from the URL and Chakra navigation persists expansion changes', async (t) => {
   const ui = await renderBoard(t, { 'docs/deep/note.md': '# Nested', 'top.md': '# Top' }, true, {
-    application: true, address: `http://localhost/?collapsed=${encodeURIComponent('["docs"]')}`,
+    address: `http://localhost/?collapsed=${encodeURIComponent('["docs"]')}`,
   });
   await ui.until(() => button(ui, 'Expand docs'), 'restored folder expansion');
   assert.equal(button(ui, 'Scope docs/deep'), undefined);
@@ -51,7 +51,7 @@ test('folder expansion restores from the URL and Chakra navigation persists expa
 });
 
 test('generic Board separates missing, literal No value, conflicts and authored Folder from physical folder', async (t) => {
-  const ui = await renderBoard(t, { ...files, 'docs/D.md': '# D\n\nStatus: No value (missing property)' }, true, { application: true, address: 'http://localhost/?view=board&group=property%3Astatus' });
+  const ui = await renderBoard(t, { ...files, 'docs/D.md': '# D\n\nStatus: No value (missing property)' }, true, { address: 'http://localhost/?view=board&group=property%3Astatus' });
   await ui.until(() => field(ui, 'Document board'), 'generic board');
   const columns = () => [...ui.document.querySelectorAll('.generic-column')];
   assert.equal(columns().filter((node) => node.querySelector('h2,h3').textContent === 'No value').length, 2);
@@ -78,7 +78,7 @@ test('generic Board separates missing, literal No value, conflicts and authored 
 });
 
 test('live generic discovery, reader and relationships update across edits, atomic replacement, rename and removal', async (t) => {
-  const ui = await renderBoard(t, files, true, { application: true, live: true });
+  const ui = await renderBoard(t, files, true, { live: true });
   await ui.until(() => button(ui, 'Read docs/A.md'), 'collection');
   await ui.click(button(ui, 'Read docs/A.md'));
   await ui.until(() => reader(ui)?.querySelector('a'), 'initial reader');
@@ -96,11 +96,12 @@ test('live generic discovery, reader and relationships update across edits, atom
 });
 
 test('optional issue tools preserve a dirty draft during refresh and reject navigation until explicitly discarded', async (t) => {
-  const ui = await renderBoard(t, files, true, { application: true, live: true });
+  const ui = await renderBoard(t, files, true, { live: true });
   await ui.until(() => button(ui, 'Read .scratch/work/issues/01-supported.md'), 'collection');
   await ui.click(button(ui, 'Read .scratch/work/issues/01-supported.md'));
   await ui.until(() => button(ui, 'Issue tools'), 'optional tools');
   await ui.click(button(ui, 'Issue tools'));
+  await ui.until(() => field(ui, 'Issue title'), 'issue editor');
   await ui.change(field(ui, 'Issue title'), 'Protected draft');
   await writeFile(join(ui.folder, '.scratch/work/issues/01-supported.md'), files['.scratch/work/issues/01-supported.md'].replace('Original body.', 'External body.'));
   await ui.until(() => /changed outside|Changed on disk/.test(ui.document.body.textContent), 'stale notice');
@@ -117,12 +118,13 @@ test('optional issue tools preserve a dirty draft during refresh and reject navi
 });
 
 test('production issue tools create, edit, comment and change supported status while ordinary documents stay read-only', async (t) => {
-  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n', 'ordinary.md': '# Ordinary' }, true, { application: true });
+  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n', 'ordinary.md': '# Ordinary' }, true, {});
   await ui.until(() => button(ui, 'Read ordinary.md'), 'collection');
   await ui.click(button(ui, 'Read ordinary.md'));
   await ui.until(() => reader(ui)?.textContent.includes('Ordinary'), 'ordinary reader');
   assert.equal(button(ui, 'Issue tools'), undefined);
   await ui.click(button(ui, 'New issue'));
+  await ui.until(() => field(ui, 'New issue title'), 'issue creator');
   await ui.change(field(ui, 'New issue title'), 'Production creation');
   await ui.change(field(ui, 'New issue body'), 'Original created body.');
   await ui.click(button(ui, 'Create issue'));
@@ -145,10 +147,25 @@ test('production issue tools create, edit, comment and change supported status w
   await ui.until(() => reader(ui)?.textContent.includes('A preserved production comment.'), 'reader reflects the saved document');
 });
 
+test('Markdown previews keep relative links inert so a draft cannot be navigated away', async (t) => {
+  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n' }, true);
+  await ui.until(() => button(ui, 'Read issues/01-existing.md'), 'collection');
+  await ui.click(button(ui, 'Read issues/01-existing.md'));
+  await ui.until(() => button(ui, 'Issue tools'), 'issue capability');
+  await ui.click(button(ui, 'Issue tools'));
+  await ui.until(() => field(ui, 'Markdown body'), 'issue editor');
+  await ui.change(field(ui, 'Markdown body'), 'See [the spec](../spec.md) and [site](https://example.com).');
+  await ui.click(button(ui, 'Preview'));
+  const preview = ui.document.querySelector('[aria-label="Body preview"]');
+  assert.equal(preview.querySelectorAll('a[href="../spec.md"]').length, 0);
+  assert.equal(preview.querySelector('span[title="Document links open from the saved Markdown."]').textContent, 'the spec');
+  assert.equal(preview.querySelector('a[href="https://example.com"]').getAttribute('target'), '_blank');
+});
+
 test('React Flow keeps measured A/B/C cards visible and stationary while C is hovered with A selected, including live refresh', async (t) => {
   const ui = await renderBoard(t, {
     'A.md': '# A\n\n[B](B.md)', 'B.md': '# B', 'C.md': '# C\n\n[B](B.md)',
-  }, true, { application: true, live: true, mapGeometry: true, address: 'http://localhost/?view=map&file=A.md' });
+  }, true, { live: true, mapGeometry: true, address: 'http://localhost/?view=map&file=A.md' });
   await ui.until(() => ui.document.querySelectorAll('.react-flow__node-document').length === 3, 'measured canvas');
   const node = (path) => ui.document.querySelector(`.react-flow__node[data-id="${path}"]`);
   const selectedPath = () => new URL(ui.document.defaultView.location.href).searchParams.get('file');
@@ -185,7 +202,7 @@ test('local maps retain reciprocal direction, separate incoming/outgoing/two-way
     'A.md': '# A\n\nNeeds: D.md\n\n[B](B.md)\n[D](D.md)',
     'B.md': '# B\n\n[A](A.md)\n[D](D.md)',
     'C.md': '# C\n\n[A](A.md)', 'D.md': '# D', 'alone.md': '# Alone',
-  }, true, { application: true, mapGeometry: true, address: 'http://localhost/?view=map&file=A.md&map=local&dependency=needs' });
+  }, true, { mapGeometry: true, address: 'http://localhost/?view=map&file=A.md&map=local&dependency=needs' });
   await ui.until(() => ui.document.querySelectorAll('.react-flow__edge').length === 4, 'central relationship strokes including the distinct dependency');
   const edges = [...ui.document.querySelectorAll('.react-flow__edge')];
   const reciprocal = edges.find((edge) => /A.md and B.md/.test(edge.getAttribute('aria-label')));

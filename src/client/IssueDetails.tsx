@@ -1,7 +1,7 @@
 import { FixPanel, type RepairActions } from './FixPanel';
 import { Box, Button, Grid, Heading, Stack, Text } from '@chakra-ui/react';
-import { useEffect, useRef } from 'react';
-import { SafeMarkdown } from './SafeMarkdown';
+import { Suspense, useEffect, useRef } from 'react';
+import { LazySafeMarkdown } from './LazySafeMarkdown';
 import { IssueEditor, type IssueDraft, type EditorActions } from './IssueEditor';
 import type { Issue } from '../server/board.js';
 import { DependencyList } from './Dependencies';
@@ -120,9 +120,11 @@ function OpenedIssue({
             {issue.content === null ? (
               <p>Original text is unavailable because the file could not be read.</p>
             ) : (
-              <SafeMarkdown onLocalLink={onLink && ((href) => onLink(issue.path, href))}>
-                {issue.content}
-              </SafeMarkdown>
+              <Suspense fallback={null}>
+                <LazySafeMarkdown onLocalLink={onLink && ((href) => onLink(issue.path, href))}>
+                  {issue.content}
+                </LazySafeMarkdown>
+              </Suspense>
             )}
           </section>
           {editor && (
