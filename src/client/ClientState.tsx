@@ -27,10 +27,10 @@ async function waitForWrites(client: QueryClient, signal: AbortSignal) {
     else if (!client.isMutating({ mutationKey: ['write'] })) { finish(); resolve(); }
   });
 }
-export function useDiskQuery<T>(key: readonly unknown[], url: string, schema: z.ZodType<T>, initialData?: T) {
+export function useDiskQuery<T>(key: readonly unknown[], url: string, schema: z.ZodType<T>, initialData?: T, enabled = true) {
   const client = useQueryClient();
   const writing = useIsMutating({ mutationKey: ['write'] }) > 0;
-  return useQuery({ queryKey: key, queryFn: async ({ signal }) => { await waitForWrites(client, signal); return readJson(url, schema, signal); }, enabled: !writing,
+  return useQuery({ queryKey: key, queryFn: async ({ signal }) => { await waitForWrites(client, signal); return readJson(url, schema, signal); }, enabled: enabled && !writing,
     ...(initialData === undefined ? {} : { initialData }), retry: false, refetchOnWindowFocus: 'always' });
 }
 export function createClientRouter(children: ReactNode) {

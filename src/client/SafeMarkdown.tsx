@@ -20,9 +20,10 @@ export const slugify = (text: string): string =>
  * on a page cannot collide; `onLocalLink` receives relative document links, and without it they stay inert
  * so a preview can never navigate away from an unsaved draft.
  */
-export function SafeMarkdown({ children, fragment, onLocalLink, onMissingFragment }: {
+export function SafeMarkdown({ children, fragment, onLocalLink, onMissingFragment, onFragment }: {
   children: string; fragment?: string | null | undefined; onLocalLink?: ((href: string) => void) | undefined;
   onMissingFragment?: ((fragment: string) => void) | undefined;
+  onFragment?: ((fragment: string) => void) | undefined;
 }) {
   const scope = useId();
   const container = useRef<HTMLDivElement>(null);
@@ -52,7 +53,7 @@ export function SafeMarkdown({ children, fragment, onLocalLink, onMissingFragmen
         const kind = classifyLink(href);
         if (kind === 'external') return <a href={href} target="_blank" rel="noopener noreferrer">{label}</a>;
         if (kind === 'fragment') {
-          return <a href={href} onClick={(event) => { event.preventDefault(); scrollToFragment(href.slice(1)); }}>{label}</a>;
+          return <a href={href} onClick={(event) => { event.preventDefault(); onFragment?.(href.slice(1)); scrollToFragment(href.slice(1)); }}>{label}</a>;
         }
         if (!onLocalLink) return <span className="inactive-link" title="Document links open from the saved Markdown.">{label}</span>;
         return <a href={href} onClick={(event) => { event.preventDefault(); onLocalLink(href); }}>{label}</a>;

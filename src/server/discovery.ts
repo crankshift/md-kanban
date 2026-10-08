@@ -74,6 +74,7 @@ export async function discoverIssues(folder: string): Promise<BoardData> {
           try {
             const opened = await handle.stat();
             if (!opened.isFile() || !(await safePath(path))) continue;
+            if (opened.size > 2 * 1024 * 1024) throw new Error('Issue exceeds the preview limit');
             const checked = await lstat(path);
             if (checked.isSymbolicLink() || opened.dev !== checked.dev || opened.ino !== checked.ino) {
               throw new Error('Issue changed during discovery');
