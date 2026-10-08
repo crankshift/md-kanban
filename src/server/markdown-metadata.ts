@@ -49,9 +49,9 @@ export function documentMetadata(content: string) {
   for (const line of body.split(/\r?\n/)) {
     if (!line.trim()) continue;
     if (!heading && /^#\s/.test(line)) { heading = true; continue; }
-    const match = line.match(/^(?:\*\*([^*:\n]+):\*\*|\*\*([^*:\n]+)\*\*:|([\p{L}][\p{L}\p{N} _./-]{0,100}):)[ \t]*(.*?)[ \t]*$/u);
+    const match = line.match(/^[ \t]{0,3}(?:\*\*([^*:\n]+):\*\*|\*\*([^*:\n]+)\*\*:|([\p{L}][\p{L}\p{N} _./-]{0,100}):)[ \t]*(.*?)[ \t]*$/u);
     if (!match) {
-      if (/^\*\*[^*\n]+:/.test(line)) diagnostics.push('Malformed leading property; original Markdown is retained.');
+      if (/^[ \t]{0,3}(?:\*\*[^*\n]+:|(?:\*\*)?Status\b)/i.test(line)) diagnostics.push('Malformed leading property; original Markdown is retained.');
       break;
     }
     const label = (match[1] ?? match[2] ?? match[3])!.trim();

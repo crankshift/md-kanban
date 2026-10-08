@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { readFile, realpath } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createIssue, creationTargets } from './creation.js';
+import { createDocument, createFolder } from './document-creation.js';
 import { discoverIssues } from './discovery.js';
 import { discoverDocuments, DocumentError, readDocument, resolveDocumentLink } from './documents.js';
 import { statusChangeSchema, issueEditSchema, commentAppendSchema, repairSchema } from './board.js';
@@ -18,6 +18,10 @@ const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
 };
+
+function visibilityPaths(value: string | null): string[] {
+  try { const data: unknown = JSON.parse(value ?? '[]'); return Array.isArray(data) ? data.filter((v): v is string => typeof v === 'string' && v.length < 4096 && !/[\\\x00-\x1f:]/.test(v) && v.split('/').every(p => !!p && p !== '.' && p !== '..')).slice(0, 1000) : []; } catch { return []; }
+}
 
 function json(response: ServerResponse, status: number, value: unknown) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -47,11 +51,8 @@ export async function startServer(folder: string): Promise<RunningServer> {
   const writer = await createIssueWriter(folder);
   const creationRoot = await realpath(folder);
   const sessionToken = randomBytes(32).toString('hex');
-  const watcher = await createBoardWatcher(folder);
+  const watchers = new Set<Awaited<ReturnType<typeof createBoardWatcher>>>();
   const streams = new Set<ServerResponse>();
-  const unsubscribe = watcher.subscribe((version) => {
-    for (const stream of streams) stream.write(`event: change\ndata: ${JSON.stringify({ version })}\n\n`);
-  });
   let url = '';
   const server = createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -68,12 +69,22 @@ export async function startServer(folder: string): Promise<RunningServer> {
       }
       const requested = new URL(request.url ?? '/', 'http://localhost');
       const pathname = decodeURIComponent(requested.pathname);
-      if (pathname === '/api/create' && request.method === 'POST') {
+      if (pathname.startsWith('/api/')) {
+        const rootStat = await lstat(creationRoot);
+        if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || await realpath(creationRoot) !== creationRoot) { json(response, 403, { error: 'The launch folder changed. Stop and relaunch against the intended folder.', code: 'root_changed' }); return; }
+      }
+      if (['/api/source', '/api/create', '/api/documents/create', '/api/folders'].includes(pathname) && request.method === 'POST') {
         try {
-          if (request.headers['x-mdboard-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before creating.');
-          json(response, 201, await createIssue(creationRoot, await readJson(request, 1024 * 1024) as Parameters<typeof createIssue>[1]));
+          if (request.headers['x-mdboard-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
+          const value = await readJson(request, 1024 * 1024);
+          if (pathname === '/api/source') {
+            const parsed = repairSchema.safeParse(value);
+            if (!parsed.success || !('content' in parsed.data)) throw new WriteError(400, 'invalid_request', 'Supply a relative Markdown path, expected revision and source.');
+            await writer.update(parsed.data, () => 'content' in parsed.data ? parsed.data.content : '', true);
+            json(response, 200, await readDocument(creationRoot, parsed.data.path));
+          } else json(response, 201, pathname === '/api/folders' ? await createFolder(creationRoot, value) : await createDocument(creationRoot, value));
         } catch (error) {
-          const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Could not create issue.');
+          const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Could not save. Reload and review before retrying.');
           json(response, failure.status, { error: failure.message, code: failure.code });
         }
         return;
@@ -132,10 +143,14 @@ export async function startServer(folder: string): Promise<RunningServer> {
         return;
       }
       if (pathname === '/api/events') {
+        const params = requested.searchParams;
+        const watcher = await createBoardWatcher(creationRoot, { visibility: { hide: visibilityPaths(params.get('hide')), show: visibilityPaths(params.get('show')) }, opened: params.get('file') ?? '' });
+        watchers.add(watcher);
+        const unsubscribe = watcher.subscribe(version => response.write(`event: change\ndata: ${JSON.stringify({ version })}\n\n`));
         response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive' });
-        if (request.method === 'HEAD') { response.end(); return; }
+        if (request.method === 'HEAD') { unsubscribe(); watcher.close(); watchers.delete(watcher); response.end(); return; }
         streams.add(response);
-        response.on('close', () => { streams.delete(response); });
+        response.on('close', () => { streams.delete(response); unsubscribe(); watcher.close(); watchers.delete(watcher); });
         response.write(`retry: 2000\nevent: ready\ndata: ${JSON.stringify({ version: watcher.version() })}\n\n`);
         return;
       }
@@ -143,7 +158,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
         // Read-only: supporting documents are never written and every read re-checks the selected folder boundary.
         try {
           const params = requested.searchParams;
-          const value = pathname === '/api/documents' ? await discoverDocuments(creationRoot)
+          const value = pathname === '/api/documents' ? await discoverDocuments(creationRoot, { hide: visibilityPaths(params.get('hide')), show: visibilityPaths(params.get('show')) })
             : pathname === '/api/document' ? await readDocument(creationRoot, params.get('path') ?? '')
               : await resolveDocumentLink(creationRoot, params.get('from') ?? '', params.get('href') ?? '');
           response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -153,11 +168,6 @@ export async function startServer(folder: string): Promise<RunningServer> {
           response.writeHead(failure.status, { 'Content-Type': 'application/json; charset=utf-8' });
           response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ error: failure.message }));
         }
-        return;
-      }
-      if (pathname === '/api/creation-targets') {
-        try { json(response, 200, await creationTargets(creationRoot)); }
-        catch { json(response, 500, { error: 'Cannot read creation containers. Check folder access and reload.' }); }
         return;
       }
       if (pathname === '/api/issues') {
@@ -190,7 +200,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
     }
   });
   // Release the watcher however the server is stopped, including a plain server.close().
-  const release = (): void => { unsubscribe(); watcher.close(); };
+  const release = (): void => { for (const watcher of watchers) watcher.close(); watchers.clear(); };
   server.on('close', release);
   try {
     await new Promise<void>((resolveListening, reject) => {

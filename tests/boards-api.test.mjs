@@ -15,8 +15,7 @@ test('CLI exposes real read-only boards and keeps Markdown files untouched', { t
   assert.equal(response.status, 200);
   const board = await response.json();
   assert.equal(board.issues.length, 6);
-  assert.equal(board.issues.filter((issue) => issue.workflow === 'implementation').length, 3);
-  assert.equal(board.issues.filter((issue) => issue.workflow === 'wayfinding').length, 2);
+  assert.ok(board.issues.every(issue => issue.workflow === null), 'statuses do not assign workflows');
   for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
     assert.equal((await fetch(`${url}/api/issues`, { method, body: '{}' })).status, 405);
   }

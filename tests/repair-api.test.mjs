@@ -26,7 +26,7 @@ test('explicit candidate status repair preserves all bytes outside the selected 
   const response = await app.send(issue, { changes: { status: 'open' } });
   assert.equal(response.status, 200);
   const saved = await response.json();
-  assert.equal(saved.workflow, 'wayfinding');
+  assert.equal(saved.workflow, null);
   assert.deepEqual(saved.diagnostics, []);
   assert.equal(await readFile(join(app.folder, issue.path), 'utf8'), original.replace('mystery', 'open'));
 });
@@ -43,7 +43,7 @@ test('missing status is inserted next to metadata or below the title, retaining 
     assert.equal(response.status, 200);
     const saved = await response.json();
     assert.equal(saved.content, expected);
-    assert.equal(saved.workflow, 'implementation');
+    assert.equal(saved.workflow, null);
   }
 });
 
@@ -59,11 +59,11 @@ test('Type conflict can be fixed by removal or wayfinding status and unknown Typ
     assert.equal(response.status, 200);
     const saved = await response.json();
     assert.equal(saved.content, expected);
-    assert.equal(saved.workflow, workflow);
+    assert.equal(saved.workflow, null);
   }
   const app = await appFor(t, { '01-candidate.md': '# 01: Candidate\nStatus: open\nType: unknown\n' });
   const response = await app.send((await app.load())[0], { changes: { type: 'prototype' } });
-  assert.equal((await response.json()).workflow, 'wayfinding');
+  assert.equal((await response.json()).workflow, null);
 });
 
 test('partial and raw repairs persist only explicit edits and return remaining diagnostics', async (t) => {
@@ -76,21 +76,21 @@ test('partial and raw repairs persist only explicit edits and return remaining d
   assert.equal(issue.workflow, null);
   response = await app.send(issue, { content: '# 01: Candidate\nStatus: open\nType: odd\n' });
   issue = await response.json();
-  assert.deepEqual(issue.diagnostics, ['Unknown wayfinding type: odd.']);
+  assert.deepEqual(issue.diagnostics, []);
   response = await app.send(issue, { content: '# 01: Candidate\nStatus: open\nType: task\n' });
-  assert.equal((await response.json()).workflow, 'wayfinding');
+  assert.equal((await response.json()).workflow, null);
 });
 
 test('both repair modes reject stale revisions, session/origin violations, invalid requests and supporting paths', async (t) => {
   const original = '# 01: Candidate\nStatus: mystery\n';
   const app = await appFor(t, { '01-candidate.md': original, 'spec.md': '# Specification\n' });
   const [issue] = await app.load();
-  for (const fields of [{ changes: {} }, { changes: { status: 'unknown' } }, { changes: { type: 'odd' } }, { changes: { extra: true } }, { content: 'a\0b' }, { content: 'x', changes: { status: 'open' } }]) {
+  for (const fields of [{ changes: {} }, { changes: { extra: true } }, { content: 'a\0b' }, { content: 'x', changes: { status: 'open' } }]) {
     assert.equal((await app.send(issue, fields)).status, 400);
   }
   assert.equal((await app.send(issue, { changes: { status: 'open' } }, { 'X-Mdboard-Session': 'wrong' })).status, 403);
   assert.equal((await app.send(issue, { content: 'x' }, { Origin: 'https://example.com' })).status, 403);
-  assert.equal((await app.send({ ...issue, path: 'spec.md' }, { content: 'x' })).status, 404);
+  assert.equal((await app.send({ ...issue, path: 'spec.md' }, { content: 'x' })).status, 409, 'a generic document is writable but still needs its own revision');
   assert.equal((await app.send({ ...issue, path: '../outside.md' }, { content: 'x' })).status, 400);
   assert.equal(await readFile(join(app.folder, issue.path), 'utf8'), original);
   const external = original + '\nExternal comment.\n';
@@ -111,6 +111,6 @@ test('duplicate or malformed chosen metadata requires raw editing and never gues
     assert.equal((await app.send(issue, { changes: { status: 'open' } })).status, 422);
     assert.equal(await readFile(join(app.folder, issue.path), 'utf8'), original);
     const response = await app.send(issue, { content: '# 01: Candidate\nStatus: open\n' });
-    assert.equal((await response.json()).workflow, 'wayfinding');
+    assert.equal((await response.json()).workflow, null);
   }
 });

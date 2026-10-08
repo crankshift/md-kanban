@@ -75,7 +75,7 @@ test('all editor and comment mutations reject stale revisions without modifying 
   const [issue] = await app.load();
   const external = issue.content + '\n## Comments\nExternal comment.\n';
   await writeFile(join(app.folder, issue.path), external);
-  for (const fields of [{ title: 'Draft' }, { status: 'resolved' }, { dependencies: [] }, { body: 'Draft body' }]) {
+  for (const fields of [{ title: 'Draft' }, { dependencies: [] }, { body: 'Draft body' }]) {
     assert.equal((await app.send('edit', issue, { changes: fields })).status, 409);
   }
   assert.equal((await app.send('comment', issue, { comment: 'Draft comment' })).status, 409);
@@ -91,7 +91,7 @@ test('invalid editor requests alter no file and comments can create a heading an
   const original = '# Example\n**Status:** ready-for-agent';
   const app = await appFor(t, { '01-example.md': original, '02-other.md': '# 02: Other\nStatus: needs-info\n' });
   let issue = (await app.load()).find((candidate) => candidate.number === '01');
-  for (const changes of [{}, { title: '' }, { title: 'two\nlines' }, { title: '   ' }, { status: 'resolved' },
+  for (const changes of [{}, { title: '' }, { title: 'two\nlines' }, { title: '   ' },
     { dependencies: [issue.id] }, { body: '## Comments\nCannot replace comments.' }, { body: '```\nUnclosed' }, { extra: true }]) {
     assert.ok([400, 422].includes((await app.send('edit', issue, { changes })).status), JSON.stringify(changes));
     assert.equal(await readFile(join(app.folder, issue.path), 'utf8'), original);

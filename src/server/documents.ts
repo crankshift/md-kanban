@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
+import { documentStatus } from './status.js';
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
-import { basename, join, posix, sep } from 'node:path';
+import { basename, join, posix } from 'node:path';
 import { issueWriteSchema } from './board.js';
 import { documentMetadata, markdownLinks } from './markdown-metadata.js';
 import { type DocumentRelation, type DocumentLink, type DocumentList, type OpenedDocument, type SupportingDocument } from './document-types.js';
@@ -14,8 +16,11 @@ const maxBytes = 2 * 1024 * 1024;
 const markdown = /\.(?:md|markdown)$/i;
 const specification = /^(?:spec|specification)\.md$/i;
 const map = /^map\.md$/i;
-// Dependency and repository-internal folders are never browsable, even through a link.
-export const documentExcluded = new Set(['.git', 'node_modules', '.pnpm-store', 'vendor', 'dist', 'build', 'coverage', '.cache', '.next', '.agents', '.codex']);
+// Visibility is query-local. Only .git is permanently protected.
+export const documentExcluded = new Set(['.git']);
+export const defaultHidden = new Set(['node_modules', 'vendor', '.pnpm-store', 'dist', 'build', 'coverage', '.cache', '.next']);
+export type Visibility = { hide?: string[]; show?: string[] };
+export const within = (path: string, folder: string): boolean => !folder || path === folder || path.startsWith(folder + '/');
 const denied = documentExcluded;
 const unavailable = (reason: string): DocumentLink => ({ status: 'unavailable', reason });
 
@@ -87,14 +92,15 @@ async function describe(root: string, path: string): Promise<SupportingDocument>
   const metadata = documentMetadata(content ?? '');
   return { path, name: basename(path), folder: posix.dirname(path), kind: kindOf(path),
     title: documentTitle(metadata.body, basename(path).replace(/\.[^.]+$/, '')),
-    feature: null, location: null, content, properties: metadata.properties, diagnostics: [...problems, ...metadata.diagnostics] };
+    feature: null, location: null, content, revision: content === null ? null : createHash('sha256').update(content).digest('hex'), status: documentStatus(content), properties: metadata.properties, diagnostics: [...problems, ...metadata.diagnostics] };
 }
 
 /** Every Markdown descendant belongs, independent of the optional issue write adapter. */
-export async function discoverDocuments(folder: string): Promise<DocumentList> {
+export async function discoverDocuments(folder: string, visibility: Visibility = {}): Promise<DocumentList> {
   const root = await realpath(folder);
   const documents: SupportingDocument[] = [];
   const warnings: string[] = [];
+  const folders: string[] = [], hidden: string[] = [];
   async function walk(directory: string) {
     let entries;
     try {
@@ -110,22 +116,15 @@ export async function discoverDocuments(folder: string): Promise<DocumentList> {
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       if (denied.has(entry.name) || entry.name.startsWith('.mdboard-')) continue;
       const path = directory ? `${directory}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) await walk(path);
+      if (entry.isDirectory()) {
+        folders.push(path);
+        const hide = visibility.hide?.some(folder => within(path, folder)) || (defaultHidden.has(entry.name) && !visibility.show?.includes(path));
+        if (hide) hidden.push(path); else await walk(path);
+      }
       else if (markdown.test(entry.name)) documents.push(await describe(root, path));
     }
   }
-  const entries = await readdir(root, { withFileTypes: true });
-  const documentFolder = root.split(sep).some((part) => part === 'docs' || part === '.scratch');
-  const hasFolder = (name: string) => entries.some((entry) => entry.name === name && entry.isDirectory());
-  const repository = !['docs', '.scratch'].includes(basename(root)) &&
-    (entries.some((entry) => entry.name === '.git') || (!documentFolder && hasFolder('docs') && hasFolder('.scratch')));
-  if (repository) {
-    for (const name of ['docs', '.scratch', 'issues', 'tickets']) {
-      const entry = entries.find((entry) => entry.name === name);
-      if (entry?.isDirectory()) await walk(name);
-      else if (entry?.isSymbolicLink()) warnings.push(`Cannot read directory: ${name}. Symbolic links are not followed.`);
-    }
-  } else await walk('');
+  await walk('');
   documents.sort((a, b) => a.path.localeCompare(b.path));
   const edges = new Map<string, DocumentRelation>();
   const indexed = new Set(documents.map((document) => document.path));
@@ -156,7 +155,7 @@ export async function discoverDocuments(folder: string): Promise<DocumentList> {
       }
     }
   }
-  return { folder: root, documents, edges: [...edges.values()], warnings };
+  return { folder: root, documents, edges: [...edges.values()], warnings, folders, hidden };
 }
 
 export async function readDocument(folder: string, path: string): Promise<OpenedDocument> {
@@ -168,7 +167,7 @@ export async function readDocument(folder: string, path: string): Promise<Opened
   const content = bytes.toString('utf8');
   const metadata = documentMetadata(content);
   return { path, title: documentTitle(metadata.body, basename(path).replace(/\.[^.]+$/, '')), kind: kindOf(path), content, body: metadata.body,
-    properties: metadata.properties, diagnostics: metadata.diagnostics };
+    properties: metadata.properties, diagnostics: metadata.diagnostics, revision: createHash('sha256').update(bytes).digest('hex'), status: documentStatus(content) };
 }
 
 /** Pure path resolution shared by indexing and reader navigation. Access is checked separately. */

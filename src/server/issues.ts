@@ -1,7 +1,8 @@
+import { patchDocumentStatus } from './status.js';
 import { leadingMetadata } from './document.js';
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
-import { implementationStatus, wayfindingStatus, wayfindingType, type Issue, type IssueContext } from './board.js';
+import { type Issue, type IssueContext } from './board.js';
 
 export function filenameNumber(path: string): string | null {
   return basename(path).match(/^(\d+)(?:[-_. ]|\.md$)/i)?.[1] ?? null;
@@ -13,18 +14,9 @@ export function numberedHeading(content: string): { number: string; title: strin
   return heading?.[1] && heading[2] ? { number: heading[1], title: heading[2] } : null;
 }
 
-export function patchIssueStatus(issue: Issue, status: string): string {
-  const schema = issue.workflow === 'implementation' ? implementationStatus : wayfindingStatus;
-  if (!issue.workflow || issue.content === null || !schema.safeParse(status).success) {
-    throw new Error('Choose a supported status in this issue’s workflow.');
-  }
-  for (const { match, start } of leadingMetadata(issue.content)) {
-    if (match && (match[2] ?? match[3] ?? match[4])?.toLowerCase() === 'status') {
-      const valueStart = start + (match[1]?.length ?? 0);
-      return issue.content.slice(0, valueStart) + status + issue.content.slice(valueStart + (match[5]?.length ?? 0));
-    }
-  }
-  throw new Error('Cannot identify status metadata. Reload and check the issue.');
+export function patchIssueStatus(issue: Issue, status: string | null): string {
+  if (issue.content === null) throw new Error('Document is unavailable.');
+  return patchDocumentStatus(issue.content, status);
 }
 
 export function patchIssueTitle(issue: Issue, title: string): string {
@@ -62,16 +54,14 @@ export function parseIssue(context: IssueContext, content: string): Issue {
   const status = metadata.get('status') ?? null;
   const type = metadata.get('type') ?? null;
   const dependencyText = metadata.get('blocked by') ?? null;
-  const implementation = implementationStatus.safeParse(status).success;
-  const wayfinding = wayfindingStatus.safeParse(status).success;
   if (!status) diagnostics.push('Missing status.');
-  else if (!implementation && !wayfinding) diagnostics.push(`Unknown status: ${status}.`);
-  if (type !== null && !wayfindingType.safeParse(type).success) diagnostics.push(`Unknown wayfinding type: ${type || '(empty)'}.`);
-  if (implementation && type !== null) diagnostics.push('Ambiguous workflow: implementation status with wayfinding Type metadata.');
-  if (!implementation && !wayfinding) diagnostics.push('Workflow cannot be determined from a supported status.');
+
+
+
+
   return {
     ...context, id: context.path, number, title, status,
-    workflow: diagnostics.length ? null : implementation ? 'implementation' : 'wayfinding',
+    workflow: null,
     type, dependencyText, content,
     revision: createHash('sha256').update(content, 'utf8').digest('hex'), diagnostics,
   };

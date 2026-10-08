@@ -73,11 +73,11 @@ test('agent-like writes, creations, renames, deletions and atomic replacements r
   await expectChange(async () => {
     await mkdir(join(folder, 'docs/tickets/gamma/issues'), { recursive: true });
     await writeFile(join(folder, 'docs/tickets/gamma/issues/01-review.md'), '# 01: Review\n\nStatus: resolved\nType: task\n');
-  }, (issues) => assert.equal(issueAt(issues, 'docs/tickets/gamma/issues/01-review.md').workflow, 'wayfinding'));
+  }, (issues) => assert.equal(issueAt(issues, 'docs/tickets/gamma/issues/01-review.md').workflow, null));
   await expectChange(() => writeFile(join(dir, '01-start.md'), '# 01: Start\n\nStatus: finished\n'), (issues) => {
     const broken = issueAt(issues, '.scratch/alpha/issues/01-start.md');
     assert.equal(broken.workflow, null);
-    assert.ok(broken.diagnostics.length > 0);
+    assert.deepEqual(broken.diagnostics, [], 'an unfamiliar authored status is ordinary data');
   });
 });
 
@@ -157,6 +157,7 @@ test('a plain server.close also releases the watcher', async (t) => {
   const before = watchers();
   const app = await startServer(folder);
   t.after(() => app.close());
+  await connectEvents(t, app.url);
   assert.ok(watchers() > before);
   await new Promise((resolve) => { app.server.close(resolve); app.server.closeAllConnections(); });
   await released(before);

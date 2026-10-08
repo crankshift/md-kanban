@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { discoverIssues } from './discovery.js';
-import { documentExcluded } from './documents.js';
+
+import { defaultHidden, within, type Visibility, documentExcluded } from './documents.js';
 
 export type BoardWatcher = {
   /** Increases each time the discovered board differs from the previously published one. */
@@ -12,15 +12,16 @@ export type BoardWatcher = {
   subscribe: (listener: (version: number) => void) => () => void;
   close: () => void;
 };
-export type BoardWatcherOptions = { pollMs?: number; native?: boolean };
+export type BoardWatcherOptions = { pollMs?: number; native?: boolean; visibility?: Visibility; opened?: string };
 
 const debounceMs = 100;
 
 // Include ordinary linked Markdown as well as listed supporting documents. Stat fingerprints avoid
 // reading document contents here; the document API still owns safe reads and the selected-root boundary.
-async function markdownVersions(folder: string): Promise<unknown[]> {
+async function markdownVersions(folder: string, options: BoardWatcherOptions): Promise<unknown[]> {
   const versions: unknown[] = [];
-  async function walk(directory: string) {
+  async function walk(directory: string, relative = '') {
+    if ((await lstat(directory)).isSymbolicLink() || await realpath(directory) !== directory) throw new Error('Directory changed');
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
       if (entry.name.startsWith('.mdboard-') || documentExcluded.has(entry.name)) continue;
       const path = join(directory, entry.name);
@@ -28,7 +29,9 @@ async function markdownVersions(folder: string): Promise<unknown[]> {
         if (entry.isDirectory()) {
           const stat = await lstat(path);
           versions.push([path, stat.ino, stat.mode]);
-          if (!stat.isSymbolicLink()) await walk(path);
+          const child = relative ? relative + '/' + entry.name : entry.name;
+          const hidden = options.visibility?.hide?.some(parent => within(child, parent)) || (defaultHidden.has(entry.name) && !options.visibility?.show?.includes(child));
+          if (!stat.isSymbolicLink() && !hidden) await walk(path, child);
         } else if (/\.(md|markdown)$/i.test(entry.name)) {
           const stat = await lstat(path);
           versions.push([path, stat.ino, stat.size, stat.mode, stat.mtimeMs, stat.ctimeMs]);
@@ -37,10 +40,17 @@ async function markdownVersions(folder: string): Promise<unknown[]> {
     }
   }
   await walk(folder);
+  if (options.opened && !options.opened.split('/').some(p => p === '..' || p === '.git' || !p) && !/[\\:]/.test(options.opened)) {
+    let current = folder;
+    try {
+      for (const part of options.opened.split('/')) { current = join(current, part); if ((await lstat(current)).isSymbolicLink()) throw new Error('symlink'); }
+      const stat = await lstat(current); versions.push(['opened', current, stat.ino, stat.size, stat.mode, stat.mtimeMs, stat.ctimeMs]);
+    } catch { versions.push(['opened', 'unavailable']); }
+  }
   return versions;
 }
-const fingerprintOf = async (folder: string): Promise<string> => {
-  try { return createHash('sha256').update(JSON.stringify([await discoverIssues(folder), await markdownVersions(folder)])).digest('hex'); }
+const fingerprintOf = async (folder: string, options: BoardWatcherOptions): Promise<string> => {
+  try { return createHash('sha256').update(JSON.stringify(await markdownVersions(folder, options))).digest('hex'); }
   catch { return 'unavailable'; }
 };
 
@@ -70,7 +80,7 @@ export async function createBoardWatcher(folder: string, options: BoardWatcherOp
     try {
       do {
         rescan = false;
-        const next = await fingerprintOf(folder);
+        const next = await fingerprintOf(folder, options);
         if (closed) return;
         // A native watcher can die silently when the root is removed or replaced; polling recovers from that.
         if (next === 'unavailable') startPolling();

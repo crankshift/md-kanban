@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Discover Markdown throughout the launch folder, inventory empty folders, and support URL-scoped subtree visibility with explicit hidden-document reads and live refresh. Authorize real revision-checked status/source/comment writes and minimal file/folder creation independently of workflow conventions.
+
 - Faster first load: the issue tools overlays (details, editor, creator, repair, dependencies) and the Markdown rendering pipeline now load on demand instead of parsing on every visit, and vendor code is split into dedicated `react` and `chakra` chunks. The entry chunk shrank from 1,284 kB to 404 kB.
 - Dropped the unreachable standalone board UI, shrinking the shipped client further (entry chunk down to 275 kB) and removing the `@dnd-kit` drag-and-drop code from every chunk. Issue tools (editing, commenting, creating, repairing, status changes) remain fully supported from the document reader.
 

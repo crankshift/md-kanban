@@ -33,7 +33,7 @@ test('collection discovers ordinary Markdown recursively without issue conventio
   await symlink('../.scratch', join(app.root, 'docs/folder-alias'));
   const collection = await app.get();
   assert.deepEqual(collection.documents.map((doc) => doc.path), [
-    '.scratch/archive/deep/free note.MD', 'docs/agents/guidance.markdown', 'docs/alias.md', 'docs/huge.md', 'docs/link.md', 'docs/locked.md',
+    '.scratch/archive/deep/free note.MD', 'docs/agents/guidance.markdown', 'docs/alias.md', 'docs/huge.md', 'docs/link.md', 'docs/locked.md', 'README.md',
   ]);
   const byPath = (path) => collection.documents.find((doc) => doc.path === path);
   assert.equal(byPath('docs/agents/guidance.markdown').content, '# Guidance\n\nNo properties needed.');
@@ -43,8 +43,7 @@ test('collection discovers ordinary Markdown recursively without issue conventio
   assert.equal(byPath('docs/alias.md').content, null);
   assert.match(byPath('docs/alias.md').diagnostics.join(' '), /symbolic links/i);
   if (process.getuid?.() !== 0) assert.equal(byPath('docs/locked.md').content, null);
-  assert.equal(collection.edges.length, 0, 'linked-only targets never invent indexed graph nodes');
-  assert.match(byPath('docs/link.md').diagnostics.join(' '), /outside.*collection/i);
+  assert.ok(collection.edges.some(edge => edge.source === 'docs/link.md' && edge.target === 'README.md'), 'root Markdown belongs to the collection');
   assert.equal((await app.get('/api/document?path=README.md')).content, '# Linked only');
 });
 
