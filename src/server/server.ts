@@ -7,6 +7,7 @@ import { createDocument, createFolder } from './document-creation.js';
 import { discoverIssues } from './discovery.js';
 import { discoverDocuments, DocumentError, readDocument, resolveDocumentLink } from './documents.js';
 import { statusChangeSchema, issueEditSchema, commentAppendSchema, repairSchema } from './board.js';
+import { patchDocumentStatus } from './status.js';
 import { patchIssueStatus } from './issues.js';
 import { editIssue } from './edits.js';
 import { appendIssueComment, repairMarkdown } from './document.js';
@@ -114,7 +115,7 @@ export async function startServer(folder: string): Promise<RunningServer> {
           if (request.headers['x-mdboard-session'] !== sessionToken) throw new WriteError(403, 'invalid_session', 'The local session changed. Reload before saving.');
           const parsed = repairSchema.safeParse(await readJson(request, 1024 * 1024));
           if (!parsed.success) throw new WriteError(400, 'invalid_request', parsed.error.issues.map((issue) => issue.message).join('; '));
-          json(response, 200, await writer.update(parsed.data, (issue) => repairMarkdown(issue.content!, parsed.data), true));
+          json(response, 200, await writer.update(parsed.data, (issue) => 'content' in parsed.data ? parsed.data.content : repairMarkdown(parsed.data.changes.status === undefined ? issue.content! : patchDocumentStatus(issue.content!, parsed.data.changes.status), { changes: { type: parsed.data.changes.type } }), true));
         } catch (error) {
           const failure = error instanceof WriteError ? error : new WriteError(500, 'write_failed', 'Cannot repair issue. Reload and try again.');
           json(response, failure.status, { error: failure.message, code: failure.code });

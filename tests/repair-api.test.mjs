@@ -33,9 +33,9 @@ test('explicit candidate status repair preserves all bytes outside the selected 
 
 test('missing status is inserted next to metadata or below the title, retaining style and newline bytes', async (t) => {
   for (const [original, expected] of [
-    ['# 01: Candidate\n\nBody.  ', '# 01: Candidate\nStatus: ready-for-agent\n\nBody.  '],
-    ['# 01: Candidate', '# 01: Candidate\nStatus: ready-for-agent\n'],
-    ['\uFEFF# 01: Candidate\r\n\r\n **Blocked by:** None \t\r\n\r\n## Notes\r\nKeep.', '\uFEFF# 01: Candidate\r\n\r\n **Blocked by:** None \t\r\n**Status:** ready-for-agent\r\n\r\n## Notes\r\nKeep.'],
+    ['# 01: Candidate\n\nBody.  ', '# 01: Candidate\n\nStatus: ready-for-agent\n\nBody.  '],
+    ['# 01: Candidate', '# 01: Candidate\n\nStatus: ready-for-agent\n'],
+    ['\uFEFF# 01: Candidate\r\n\r\n **Blocked by:** None \t\r\n\r\n## Notes\r\nKeep.', '\uFEFF# 01: Candidate\r\n\r\nStatus: ready-for-agent\r\n\r\n **Blocked by:** None \t\r\n\r\n## Notes\r\nKeep.'],
   ]) {
     const app = await appFor(t, { '01-candidate.md': original });
     const [issue] = await app.load();
