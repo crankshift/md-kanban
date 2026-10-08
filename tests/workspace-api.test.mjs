@@ -58,6 +58,15 @@ test('direct document-folder launch includes descendants and never expands to it
   assert.equal((await app.get('/api/document-link?from=plain.md&href=../parent.md')).status, 'unavailable');
 });
 
+test('a direct folder with a docs child retains its own Markdown and all other descendants', async (t) => {
+  const app = await serve(t, {
+    'chosen/01-two.md': '# 01: Two\n\nStatus: open', 'chosen/plain.md': '# Plain',
+    'chosen/docs/guide.md': '# Guide', 'chosen/archive/note.markdown': '# Archive',
+    'outside.md': '# Outside',
+  }, 'chosen');
+  assert.deepEqual((await app.get()).documents.map((doc) => doc.path), ['01-two.md', 'archive/note.markdown', 'docs/guide.md', 'plain.md']);
+});
+
 test('optional properties retain arbitrary literal values, all occurrences and conflicts without parsing prose or examples', async (t) => {
   const app = await serve(t, {
     'docs/custom.md': '---\nStatus: moonlight\nStatus: sunrise\nFolder: authored\nEmpty: ""\nOwners: [Ada, Lin]\nDetails: {phase: 01}\n---\n# Custom\n\n**Status:** moonlight\n**Odd key**: strange\n\nOrdinary paragraph.\nStatus: body\n\n```md\nType: example\n```',

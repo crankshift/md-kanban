@@ -1,7 +1,7 @@
 import type { Node } from '@xyflow/react';
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type SimulationNodeDatum } from 'd3-force';
 import dagre from '@dagrejs/dagre';
-import type { Document } from './model';
+import type { Document, MapSettings } from './model';
 import type { DocumentRelation } from '../../server/document-types.js';
 
 export type DocumentNode = Node<{ document: Document; color: string; compact: boolean; onOpen?: (path: string) => void; onFocus?: (path: string) => void }, 'document'>;
@@ -11,7 +11,7 @@ const colors = ['#6d87c7', '#55a093', '#a18bc2', '#b79a5e', '#7a9fae', '#aa7f8f'
 type Point = SimulationNodeDatum & { id: string; cluster: number };
 
 /** Layouts arrange actual relationships; only the center's edges belong in its one-hop reading map. */
-export function layoutDocumentMap(documents: Document[], edges: DocumentRelation[], localCenter: string, presentation: string) {
+export function layoutDocumentMap(documents: Document[], edges: DocumentRelation[], localCenter: string, presentation: MapSettings['presentation']) {
 
     const folders = [...new Set(documents.map((document) => document.folder))].sort();
     const available = new Set(documents.map((document) => document.path));

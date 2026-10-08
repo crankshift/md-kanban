@@ -13,7 +13,7 @@ import { FileResults } from './FileResults';
 import { GenericBoard } from './GenericBoard';
 import { WorkspaceReader } from './WorkspaceReader';
 import { MapView } from './MapView';
-import { folderPaths, labelOf, propertyValue } from './model';
+import { folderPaths, labelOf, propertyValue, mapSettings } from './model';
 import './workspace.css';
 
 export function Workspace({ folder, issues, canWrite, sessionProblem }: { folder?: string | undefined; issues?: BoardData | undefined; canWrite: boolean; sessionProblem: boolean }) {
@@ -33,11 +33,10 @@ export function Workspace({ folder, issues, canWrite, sessionProblem }: { folder
   const search = params.get('q') ?? '';
   const property = params.get('property') ?? '';
   const value = params.get('value') ?? '';
-  const mode = params.get('map') === 'local' ? 'local' : 'global';
-  const relation = params.get('relation') ?? 'all';
-  const presentation = params.get('layout') ?? 'overview';
-  const connections = params.get('connections') === 'all' ? 'all' : 'focus';
-  const dependency = params.get('dependency') ?? '';
+  const settings = mapSettings(params);
+  const { mode, relation, dependency } = settings;
+  let collapsed: string[] = [];
+  try { const parsed: unknown = JSON.parse(params.get('collapsed') ?? '[]'); if (Array.isArray(parsed)) collapsed = parsed.filter((value): value is string => typeof value === 'string'); } catch { /* Malformed optional URL state uses the expanded tree. */ }
   const documents = query.data?.documents ?? [];
   const folders = useMemo(() => folderPaths(documents), [documents]);
   const properties = useMemo(() => [...new Set(documents.flatMap((document) => document.properties.map((entry) => entry.key)))].sort(), [documents]);
@@ -63,22 +62,41 @@ export function Workspace({ folder, issues, canWrite, sessionProblem }: { folder
     source.addEventListener('error', () => setLive('offline'));
     return () => source.close();
   }, [client]);
-  return <div className="markdown-workspace"><div className="workspace-explorer"><aside className="explorer-sidebar">
-    <div className="workspace-brand"><HStack gap="2"><Box color="orange.500"><LuBookOpen size={23} /></Box><Heading size="md">mdboard</Heading></HStack><Text color="fg.muted" fontSize="xs" mt="2" title={folder}>{folder?.split('/').at(-1) ?? 'Selected folder'} / Markdown workspace</Text></div>
-    <FolderTree documents={documents} folders={folders} scope={scope} onScope={(folder) => set({ folder })} />
-    <div className="sidebar-footer"><HStack justify="space-between" px="3" py="3"><Text color="fg.muted" fontSize="xs">{documents.length} files · {query.isError || sessionProblem ? 'outdated' : live}</Text><ColorModeButton size="xs" /></HStack></div>
-  </aside><main className="explorer-main"><div className="workspace-heading"><div><Heading size="lg">{scope || 'All files'}</Heading><Text fontSize="xs" color="fg.muted" mt="1">{filtered.length} Markdown files{scope ? ' · including subfolders' : ''}</Text></div><HStack gap="1" flexWrap="wrap" aria-label="Workspace views">{([['files', 'Files', <LuLayoutList />], ['board', 'Board', <LuTable2 />], ['map', 'Map', <LuNetwork />]] as const).map(([key, label, icon]) => <Button size="sm" key={key} variant={view === key ? 'subtle' : 'ghost'} colorPalette={view === key ? 'orange' : 'gray'} aria-pressed={view === key} onClick={() => set({ view: key })}>{icon}{label}</Button>)}{canWrite && <Button size="sm" variant="outline" onClick={() => set({ create: 'true', issue: null })}>New issue</Button>}<Box display={{ base: 'block', md: 'none' }}><ColorModeButton size="xs" /></Box></HStack></div>
-    <div className="workspace-toolbar"><div className="workspace-search"><LuSearch /><Input type="search" size="sm" aria-label="Search Markdown files" placeholder="Search files and text…" value={search} onChange={(event) => set({ q: event.target.value }, true)} /></div>
-      <div className="toolbar-folder"><Picker label="Folder scope" items={[{ value: '', label: 'All folders' }, ...folders.map((folder) => ({ value: folder, label: folder }))]} value={[scope]} onChange={(values) => set({ folder: values[0] ?? null })} /></div>
-      <Picker label="Property" items={[{ value: '', label: 'Any property' }, ...properties.map((key) => ({ value: key, label: labelOf(key) }))]} value={[property]} onChange={(values) => set({ property: values[0] ?? null, value: null })} />
-      {property && <Picker label="Value" items={[{ value: '', label: 'Any value' }, ...values.map((entry) => ({ value: entry.id, label: entry.label }))]} value={[value]} onChange={(values) => set({ value: values[0] ?? null })} />}
-      {!!(search || scope || property) && <Button size="sm" variant="ghost" onClick={() => set({ q: null, folder: null, property: null, value: null })}>Clear</Button>}
-      <Button size="sm" variant="ghost" aria-label="Reload Markdown files" onClick={() => void client.invalidateQueries({ queryKey: diskKey })}><LuRefreshCw /></Button>
-    </div>
-    {(query.isError || sessionProblem) && <p className="workspace-status" role="alert">Cannot refresh the workspace: outdated data is shown. Your open draft is kept. Check access and reload.</p>}
-    {query.data?.warnings.map((warning) => <p className="workspace-status" role="alert" key={warning}>{warning}</p>)}
-    <div className={`explorer-content ${view === 'files' ? 'explorer-files' : ''} ${selected ? 'has-reader' : ''}`}><div className="explorer-primary">
-      {!query.data ? <p className="workspace-empty" role="status">Reading Markdown files…</p> : view === 'files' ? <FileResults documents={filtered} selected={selected} onOpen={open} /> : view === 'board' ? <GenericBoard documents={filtered} properties={properties} grouping={grouping} selected={selected} onGroup={(group) => set({ group })} onOpen={open} /> : <MapView documents={mode === 'local' && selected ? neighborhood : filtered} edges={edges} properties={properties} selected={selected} mode={mode} relation={relation} presentation={presentation} connections={connections} dependency={dependency} onSet={set} onOpen={open} />}
-    </div><div className="explorer-reader"><WorkspaceReader path={selected} fragment={params.get('anchor') ?? params.get('fragment')} documents={documents} edges={relationships} canUseTools={canWrite && !!issues?.issues.some((issue) => issue.path === selected)} onOpen={open} onClose={() => set({ file: null, anchor: null, issue: null, document: null, fragment: null })} onBack={() => { void navigate(-1); }} onNeighborhood={() => set({ view: 'map', map: 'local' })} onTools={() => set({ issue: selected })} onFragment={(anchor) => set({ anchor })} /></div></div>
-  </main></div></div>;
+  return <Box className="markdown-workspace" h="100dvh" overflow="hidden" bg="bg.subtle">
+    <Box display="grid" gridTemplateColumns={{ base: '1fr', md: '190px minmax(0,1fr)', xl: '230px minmax(0,1fr)' }} h="full">
+      <Box as="aside" display={{ base: 'none', md: 'flex' }} flexDirection="column" borderRightWidth="1px" bg="bg.panel" minH="0">
+        <Box p="4" flexShrink="0"><HStack gap="2"><Box color="orange.500"><LuBookOpen size={23} /></Box><Heading size="md">mdboard</Heading></HStack><Text color="fg.muted" fontSize="xs" mt="2" title={folder}>{folder?.split('/').at(-1) ?? 'Selected folder'} / Markdown workspace</Text></Box>
+        <FolderTree documents={documents} folders={folders} scope={scope} collapsed={collapsed} onCollapse={(folders) => set({ collapsed: folders.length ? JSON.stringify(folders) : null })} onScope={(folder) => set({ folder })} />
+        <Box mt="auto" borderTopWidth="1px"><HStack justify="space-between" px="3" py="3"><Text color="fg.muted" fontSize="xs">{documents.length} files · {query.isError || sessionProblem ? 'outdated' : live}</Text><ColorModeButton size="xs" /></HStack></Box>
+      </Box>
+      <Box as="main" display="flex" flexDirection="column" minW="0" minH="0">
+        <Box display="flex" flexDirection={{ base: 'column', md: 'row' }} minH="20" justifyContent="space-between" alignItems={{ base: 'start', md: 'center' }} gap="3" p={{ base: '3', md: '5' }} borderBottomWidth="1px" bg="bg.panel" flexShrink="0">
+          <Box><Heading size="lg">{scope || 'All files'}</Heading><Text fontSize="xs" color="fg.muted" mt="1">{filtered.length} Markdown files{scope ? ' · including subfolders' : ''}</Text></Box>
+          <HStack gap="1" flexWrap="wrap" aria-label="Workspace views">
+            {([['files', 'Files', <LuLayoutList />], ['board', 'Board', <LuTable2 />], ['map', 'Map', <LuNetwork />]] as const).map(([key, label, icon]) => <Button size="sm" key={key} variant={view === key ? 'subtle' : 'ghost'} colorPalette={view === key ? 'orange' : 'gray'} aria-pressed={view === key} onClick={() => set({ view: key })}>{icon}{label}</Button>)}
+            {canWrite && <Button size="sm" variant="outline" onClick={() => set({ create: 'true', issue: null })}>New issue</Button>}
+            <Box display={{ base: 'block', md: 'none' }}><ColorModeButton size="xs" /></Box>
+          </HStack>
+        </Box>
+        <Box display="flex" alignItems="end" flexWrap="wrap" gap="2" px={{ base: '3', md: '5' }} py="3" borderBottomWidth="1px" bg="bg.panel" css={{ '& label': { fontSize: '11px', color: 'fg.muted' } }}>
+          <Box display="flex" alignItems="center" position="relative" flex="1 1 210px" minW="150px" maxW="380px"><Box position="absolute" left="2.5" zIndex="1" color="fg.muted"><LuSearch /></Box><Input type="search" size="sm" ps="8" aria-label="Search Markdown files" placeholder="Search files and text…" value={search} onChange={(event) => set({ q: event.target.value }, true)} /></Box>
+          <Box display={{ base: 'block', md: 'none' }} w="170px"><Picker label="Folder scope" items={[{ value: '', label: 'All folders' }, ...folders.map((folder) => ({ value: folder, label: folder }))]} value={[scope]} onChange={(values) => set({ folder: values[0] ?? null })} /></Box>
+          <Box w="170px"><Picker label="Property" items={[{ value: '', label: 'Any property' }, ...properties.map((key) => ({ value: key, label: labelOf(key) }))]} value={[property]} onChange={(values) => set({ property: values[0] ?? null, value: null })} /></Box>
+          {property && <Box w="170px"><Picker label="Value" items={[{ value: '', label: 'Any value' }, ...values.map((entry) => ({ value: entry.id, label: entry.label }))]} value={[value]} onChange={(values) => set({ value: values[0] ?? null })} /></Box>}
+          {!!(search || scope || property) && <Button size="sm" variant="ghost" onClick={() => set({ q: null, folder: null, property: null, value: null })}>Clear</Button>}
+          <Button size="sm" variant="ghost" aria-label="Reload Markdown files" onClick={() => void client.invalidateQueries({ queryKey: diskKey })}><LuRefreshCw /></Button>
+        </Box>
+        {(query.isError || sessionProblem) && <Text px="4" py="2" bg="bg.panel" role="alert">Cannot refresh the workspace: outdated data is shown. Your open draft is kept. Check access and reload.</Text>}
+        {query.data?.warnings.map((warning) => <Text px="4" py="2" bg="bg.panel" role="alert" key={warning}>{warning}</Text>)}
+        <Box display="grid" flex="1" minH="0" gridTemplateColumns={{ base: 'minmax(0,1fr)', md: view === 'files' ? 'minmax(220px,38%) minmax(0,1fr)' : selected ? 'minmax(300px,1fr) minmax(340px,42%)' : 'minmax(0,1fr)' }} gridTemplateRows={{ base: view !== 'files' && selected ? 'minmax(260px,50%) minmax(0,1fr)' : 'minmax(0,1fr)', md: 'minmax(0,1fr)' }}>
+          <Box display={{ base: view === 'files' && selected ? 'none' : 'block', md: 'block' }} minW="0" minH="0" overflow="auto">
+            {!query.data ? <Text p="10" color="fg.muted" textAlign="center" role="status">Reading Markdown files…</Text> : view === 'files' ? <FileResults documents={filtered} selected={selected} onOpen={open} /> : view === 'board' ? <GenericBoard documents={filtered} properties={properties} grouping={grouping} selected={selected} onGroup={(group) => set({ group })} onOpen={open} /> : <MapView documents={mode === 'local' && selected ? neighborhood : filtered} edges={edges} properties={properties} selected={selected} settings={settings} onSet={set} onOpen={open} />}
+          </Box>
+          <Box display={{ base: selected ? 'block' : 'none', md: view === 'files' || selected ? 'block' : 'none' }} bg="bg.panel" borderLeftWidth={{ base: '0', md: '1px' }} overflow="auto" minW="0" minH="0">
+            <WorkspaceReader path={selected} fragment={params.get('anchor') ?? params.get('fragment')} documents={documents} edges={relationships} canUseTools={canWrite && !!issues?.issues.some((issue) => issue.path === selected)} onOpen={open} onClose={() => set({ file: null, anchor: null, issue: null, document: null, fragment: null })} onBack={() => { void navigate(-1); }} onNeighborhood={() => set({ view: 'map', map: 'local' })} onTools={() => set({ issue: selected })} onFragment={(anchor) => set({ anchor })} />
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  </Box>;
 }

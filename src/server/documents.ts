@@ -1,10 +1,10 @@
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
-import { basename, join, posix } from 'node:path';
+import { basename, join, posix, sep } from 'node:path';
 import { issueWriteSchema } from './board.js';
 import { documentMetadata, markdownLinks } from './markdown-metadata.js';
 import { type DocumentRelation, type DocumentLink, type DocumentList, type OpenedDocument, type SupportingDocument } from './document-types.js';
-import { classifyRoot, discoverIssues } from './discovery.js';
+import { discoverIssues } from './discovery.js';
 
 export class DocumentError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }
@@ -114,8 +114,12 @@ export async function discoverDocuments(folder: string): Promise<DocumentList> {
       else if (markdown.test(entry.name)) documents.push(await describe(root, path));
     }
   }
-  if ((await classifyRoot(root)).repository) {
-    const entries = await readdir(root, { withFileTypes: true });
+  const entries = await readdir(root, { withFileTypes: true });
+  const documentFolder = root.split(sep).some((part) => part === 'docs' || part === '.scratch');
+  const hasFolder = (name: string) => entries.some((entry) => entry.name === name && entry.isDirectory());
+  const repository = !['docs', '.scratch'].includes(basename(root)) &&
+    (entries.some((entry) => entry.name === '.git') || (!documentFolder && hasFolder('docs') && hasFolder('.scratch')));
+  if (repository) {
     for (const name of ['docs', '.scratch', 'issues', 'tickets']) {
       const entry = entries.find((entry) => entry.name === name);
       if (entry?.isDirectory()) await walk(name);

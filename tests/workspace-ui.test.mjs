@@ -36,6 +36,20 @@ test('A finds ordinary documents, follows relative fragments/backlinks and resto
   await ui.until(() => reader(ui)?.querySelector('h2')?.textContent === 'A', 'history returns to A');
 });
 
+test('folder expansion restores from the URL and Chakra navigation persists expansion changes', async (t) => {
+  const ui = await renderBoard(t, { 'docs/deep/note.md': '# Nested', 'top.md': '# Top' }, true, {
+    application: true, address: `http://localhost/?collapsed=${encodeURIComponent('["docs"]')}`,
+  });
+  await ui.until(() => button(ui, 'Expand docs'), 'restored folder expansion');
+  assert.equal(button(ui, 'Scope docs/deep'), undefined);
+  await ui.click(button(ui, 'Expand docs'));
+  assert.ok(button(ui, 'Scope docs/deep'));
+  assert.equal(new URL(ui.document.defaultView.location.href).searchParams.has('collapsed'), false);
+  await ui.click(button(ui, 'Collapse docs'));
+  assert.equal(new URL(ui.document.defaultView.location.href).searchParams.get('collapsed'), '["docs"]');
+  assert.ok(button(ui, 'Read top.md'), 'direct folder retains top-level Markdown alongside docs');
+});
+
 test('generic Board separates missing, literal No value, conflicts and authored Folder from physical folder', async (t) => {
   const ui = await renderBoard(t, files, true, { application: true, address: 'http://localhost/?view=board&group=property%3Astatus' });
   await ui.until(() => field(ui, 'Document board'), 'generic board');
@@ -90,6 +104,35 @@ test('optional issue tools preserve a dirty draft during refresh and reject navi
   await ui.settled();
   assert.match(await readFile(join(ui.folder, '.scratch/work/issues/01-supported.md'), 'utf8'), /# 01: Supported/);
   assert.equal(field(ui, 'Issue title').value, 'Protected draft');
+});
+
+test('production issue tools create, edit, comment and change supported status while ordinary documents stay read-only', async (t) => {
+  const ui = await renderBoard(t, { 'issues/01-existing.md': '# 01: Existing\n\nStatus: ready-for-agent\n', 'ordinary.md': '# Ordinary' }, true, { application: true });
+  await ui.until(() => button(ui, 'Read ordinary.md'), 'collection');
+  await ui.click(button(ui, 'Read ordinary.md'));
+  await ui.until(() => reader(ui)?.textContent.includes('Ordinary'), 'ordinary reader');
+  assert.equal(button(ui, 'Issue tools'), undefined);
+  await ui.click(button(ui, 'New issue'));
+  await ui.change(field(ui, 'New issue title'), 'Production creation');
+  await ui.change(field(ui, 'New issue body'), 'Original created body.');
+  await ui.click(button(ui, 'Create issue'));
+  await ui.until(() => field(ui, 'Issue title')?.value === 'Production creation', 'saved creation tools');
+  const path = new URL(ui.document.defaultView.location.href).searchParams.get('file');
+  assert.equal(path, 'issues/02-production-creation.md');
+  await ui.change(field(ui, 'Markdown body'), 'Updated created body.');
+  await ui.click(button(ui, 'Save issue'));
+  await ui.settled();
+  await ui.change(field(ui, 'New comment'), 'A preserved production comment.');
+  await ui.click(button(ui, 'Append comment'));
+  await ui.settled();
+  await ui.change(ui.document.querySelector('[aria-label="Issue metadata"] input[role="combobox"]'), 'needs-info');
+  await ui.settled();
+  const saved = await readFile(join(ui.folder, path), 'utf8');
+  assert.match(saved, /Status: needs-info/);
+  assert.match(saved, /Updated created body\./);
+  assert.match(saved, /## Comments\n\nA preserved production comment\./);
+  await ui.click(button(ui, 'Close Issue details'));
+  await ui.until(() => reader(ui)?.textContent.includes('A preserved production comment.'), 'reader reflects the saved document');
 });
 
 test('React Flow keeps measured A/B/C cards visible and stationary while C is hovered with A selected, including live refresh', async (t) => {

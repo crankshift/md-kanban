@@ -2,6 +2,18 @@ import type { SupportingDocument } from '../../server/document-types.js';
 
 export type Document = SupportingDocument;
 export const labelOf = (key: string) => key.charAt(0).toUpperCase() + key.slice(1);
+export type MapSettings = {
+  mode: 'global' | 'local'; relation: 'all' | 'link' | 'dependency';
+  presentation: 'overview' | 'directed' | 'folders'; connections: 'focus' | 'all'; dependency: string;
+};
+export function mapSettings(params: URLSearchParams): MapSettings {
+  const relation = params.get('relation');
+  const presentation = params.get('layout');
+  return { mode: params.get('map') === 'local' ? 'local' : 'global',
+    relation: relation === 'link' || relation === 'dependency' ? relation : 'all',
+    presentation: presentation === 'directed' || presentation === 'folders' ? presentation : 'overview',
+    connections: params.get('connections') === 'all' ? 'all' : 'focus', dependency: params.get('dependency') ?? '' };
+}
 
 /** Identities are separate from labels: an authored “No value” or Folder never aliases a UI choice. */
 export function propertyValue(document: Document, key: string) {

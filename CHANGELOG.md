@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documents and folder scopes now organize navigation independently of numbering, issue containers, workflows, or fixed status values. Existing editing, comments, creation, repair, and status writes remain available through optional issue tools with their existing safeguards.
 - Live refresh covers all Markdown extensions, metadata, links, unavailable paths, and open readers. Unreadable/oversized files stay discoverable and directory access failures remain visible.
+- Direct folder launches retain top-level files alongside nested document folders; folder expansion and map choices restore from the URL. Workspace controls and responsive layouts use the shared Chakra theme.
 
 ## [0.1.1] - 2026-10-07
 
