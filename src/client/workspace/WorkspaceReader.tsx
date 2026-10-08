@@ -3,7 +3,7 @@ import { Badge, Box, Button, Heading, HStack, IconButton, Text } from '@chakra-u
 import { LuArrowLeft, LuBookOpen, LuNetwork, LuX } from 'react-icons/lu';
 import { openedDocumentSchema, type DocumentRelation } from '../../server/document-types.js';
 import { diskKey, useDiskQuery } from '../ClientState';
-import { resolveLink } from '../Documents';
+import { resolveLink } from './links';
 import { LazySafeMarkdown } from '../LazySafeMarkdown';
 import { Properties } from './Properties';
 import type { Document } from './model';

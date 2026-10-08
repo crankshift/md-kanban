@@ -5,7 +5,6 @@ import '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import { createServer } from 'vite';
 import { act, createElement, StrictMode } from 'react';
-import { discoverIssues } from '../dist/server/discovery.js';
 import { startServer } from '../dist/server/server.js';
 import { fixture } from './fixtures.mjs';
 import { readFile } from 'node:fs/promises';
@@ -45,19 +44,13 @@ function streamingEventSource(nativeFetch, url, inAct, sources) {
 }
 
 /**
- * Renders the real Board against a real server and temporary files. With `live`, the board also receives the
- * server's event stream through a fetch-based EventSource, since jsdom provides none.
+ * Renders the real production App against a real server and temporary files. With `live`, the app also receives
+ * the server's event stream through a fetch-based EventSource, since jsdom provides none.
  */
-export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', application = false, mapGeometry = false } = {}) {
+export async function renderBoard(t, files, editable = false, { live = false, address = 'http://localhost/', mapGeometry = false } = {}) {
   const folder = await fixture(t, files);
-  const data = await discoverIssues(folder);
   const virtualConsole = new VirtualConsole();
   virtualConsole.sendTo(console, { omitJSDOMErrors: true });
-  virtualConsole.on('jsdomError', (error) => {
-    // jsdom 26 cannot parse dnd-kit's CSS layers/nesting; real-browser verification covers styling.
-    if (error.type === 'css parsing' && error.detail?.includes('@layer dnd-kit')) return;
-    console.error(error);
-  });
   const dom = new JSDOM('<div id="root"></div>', { url: address, virtualConsole });
   dom.window.matchMedia = (query) => ({ matches: false, media: query, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
   dom.window.requestAnimationFrame = (callback) => setTimeout(callback, 0);
@@ -132,10 +125,9 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
   Object.assign(globalThis, globals);
   const { createRoot } = await import('react-dom/client');
   const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', ssr: { noExternal: ['nuqs', '@fontsource-variable/ibm-plex-sans', '@fontsource/ibm-plex-mono', '@fontsource-variable/roboto-condensed'] } });
-  const { Board } = await vite.ssrLoadModule('/Board.tsx');
   const { App } = await vite.ssrLoadModule('/App.tsx');
   const { ClientProviders, createClientRouter } = await vite.ssrLoadModule('/ClientState.tsx');
-  const router = createClientRouter(application ? createElement(App) : createElement(Board, { data, sessionToken }));
+  const router = createClientRouter(createElement(App));
   const root = createRoot(document.getElementById('root'));
   let mounted = true;
   const unmount = async () => { if (mounted) { mounted = false; await act(async () => root.unmount()); } };
@@ -152,7 +144,7 @@ export async function renderBoard(t, files, editable = false, { live = false, ad
     }
   });
   const tree = createElement(ClientProviders, {}, createElement(RouterProvider, { router }));
-  await act(async () => root.render(application ? createElement(StrictMode, {}, tree) : tree));
+  await act(async () => root.render(createElement(StrictMode, {}, tree)));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
   return {
     options: async (element) => {

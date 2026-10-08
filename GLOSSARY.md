@@ -14,6 +14,10 @@ A selected folder and its descendants used to narrow the document collection. It
 A document describing a unit of work or a question to resolve. It can carry optional properties without requiring a particular numbering or workflow convention.
 _Avoid_: Task card, ticket (when naming the underlying unit of work)
 
+**Issue tools**:
+Optional capabilities for changing an issue's file: editing, commenting, creating, repairing, and changing status. Ordinary documents stay read-only.
+_Avoid_: Board (when naming these capabilities)
+
 **Board**:
 A view of documents grouped into columns by a chosen property or folder. Columns reflect the documents' actual values without imposing a workflow or completion sequence.
 

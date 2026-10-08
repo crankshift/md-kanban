@@ -1,6 +1,6 @@
 # 02: Remove the legacy standalone board
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## Goal
@@ -38,3 +38,37 @@ Stop shipping the standalone board UI that the product can no longer reach, and 
 - `CHANGELOG.md` `Unreleased` notes the smaller client bundle.
 
 ## Comments
+
+Implemented on `perf/client-bundle`, after ticket 01.
+
+- Deleted `Board.tsx`'s non-embedded branch, `BoardView`, the `embedded` prop, its `/api/events` EventSource, `Navigator.tsx`, `DragBoard.tsx`, and `Documents.tsx` wholesale.
+- Moved `resolveLink` (plus its private `fetchJson`/`errorOf` helpers) to `src/client/workspace/links.ts`, imported by `WorkspaceReader` and the renamed `IssueTools`. Moved `Overlay` to `src/client/Overlay.tsx`. `featureKey` had no remaining consumer once `BoardView`/`Navigator` were gone, so it was deleted rather than moved.
+- Renamed `Board.tsx`/`Board` to `IssueTools.tsx`/`IssueTools`; `App.tsx` now renders `<IssueTools data=... sessionToken=... sessionProblem=... />` (no `folder`/`embedded` props — `folder` had no remaining use once `Navigator` was gone). Issue tools (editing, commenting, creating, repairing, status changes) are unchanged in behavior, only reached exclusively through the production Workspace reader now.
+- Removed `Dependencies.tsx`'s `DependencyIndicators` export (and its private `badge` constant and the `Badge` import) since it was only used by the deleted `BoardView` card renderer; `DependencyList` (used by `IssueDetails`) is unchanged.
+- Simplified `IssueTools`'s URL-state handling now that `embedded` is always true: dropped the `document`/`fragment` panel (no consumer left to open it), and the dead `workflow`/`query`/`location`/`feature`/`mode`/`sidebar`/`attention` nuqs keys that only `BoardView`/`Navigator`'s header and filters ever read. Kept nuqs/`NuqsAdapter` itself per ADR 0005 — it's still the project's URL-state mechanism, just not exercised by this particular simplified component via `useQueryStates` anymore (`setView` already drove the URL directly through `navigate`, not nuqs's setters).
+- Removed `@dnd-kit/dom` and `@dnd-kit/react` devDependencies and ran `pnpm install`; no other dependency was left unused.
+- Deleted `board-interactions.test.mjs`, `drag-board.test.mjs`, `navigator-ui.test.mjs`, `repair-ui.test.mjs`, `board-ui.test.mjs`, `documents-ui.test.mjs`, and `live-refresh.test.mjs` in full — every test in each of these files mounted the legacy standalone path (directly or through a shared `renderBoard(t, files, true)`/`liveBoard` helper) and exercised UI (status columns, drag-and-drop, the Navigator sidebar, the standalone document panel) that no longer exists in production.
+- Trimmed `client-state.test.mjs` to its one test that already exercised the production App; the other 6 tests exercised the legacy direct-`Board` render path.
+- `tests/render-board.mjs`: dropped the `application` option (the production App is now the only render mode), removed the now-unused `discoverIssues` import/`data` local and the dnd-kit-specific jsdom CSS-parsing workaround, and always wraps the render in `StrictMode`.
+- Updated every surviving `renderBoard(..., { application: true, ... })` call site in `workspace-ui.test.mjs` to drop the now-meaningless `application: true`.
+
+**Chunk sizes** (`dist/client/assets/*.js`, minified, after both tickets):
+
+| File | After ticket 01 | After ticket 02 |
+| --- | --- | --- |
+| Entry (`index-*.js`) | 403,862 B | 275,447 B |
+| `chakra-*.js` | 444,763 B | 424,821 B |
+| `react-*.js` | 218,840 B | 218,840 B |
+| `DocumentMap-*.js` | 244,779 B | 244,778 B |
+| `SafeMarkdown-*.js` | 160,856 B | 160,855 B |
+| `MarkdownEditor-*.js` | 35,583 B | 36,485 B |
+| `IssueDetails-*.js` | 14,972 B | 17,325 B |
+| `IssueCreator-*.js` | 5,347 B | 5,352 B |
+
+No chunk exceeds 500 kB; the build emits no chunk-size warning. No built chunk contains `@dnd-kit`/`DragDropProvider`/`useDraggable`/`useDroppable` (checked directly against `dist/client/assets/*.js`).
+
+**Checks run:** `pnpm check` (typecheck, build, full test suite — 82/82 passing, down from 139 after deleting the legacy-only files). Confirmed by grep that no source or test file references `Navigator`, `DragBoard`, `BoardView`, or `embedded` (excluding unrelated server-side `document-types.ts`/`documents.ts` and the generic `groupDocuments` helper, which only share the word "document").
+
+**Real-browser validation:** exercised the production build (`node dist/server/cli.js`) against a disposable fixture with Chrome, in both dark and light mode: Files/Board/Map views; opening a document in the reader (Markdown body, checkboxes, backlinks); opening issue tools from the reader; editing the title and saving; appending a comment; changing status via the sidebar picker (immediate write); repairing an unrecognized-status file (`FixPanel`'s "Set status" → "Apply fixes", confirmed it moved from "mystery" to "ready-for-agent" and joined the board); creating a new issue end to end. No application console errors. (One piece of friction unrelated to the app: the browser automation tool's CDP-driven navigation tripped the server's legitimate same-origin check that a real user-driven navigation/reload does not; worked around by reloading from an already-loaded same-origin tab rather than weakening the server's check, which was explicitly out of scope.)
+
+**Limitations:** None identified against the ticket's acceptance criteria. The stale-write/repair test coverage that existed only in the deleted legacy-mounted tests is an accepted loss per the spec; App-mode coverage of issue tools (including a stale-draft-during-refresh test in `workspace-ui.test.mjs`) remains.
