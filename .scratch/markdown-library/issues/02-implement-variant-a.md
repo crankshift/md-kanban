@@ -1,6 +1,6 @@
 # 02: Implement variant A as the generic Markdown workspace
 
-Status: ready-for-agent
+Status: resolved
 
 ## Outcome
 
